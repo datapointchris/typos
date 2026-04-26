@@ -38,13 +38,22 @@ local function write_event(event)
   state.event_count = state.event_count + 1
 end
 
+-- vim.fn.keytrans handles most special keys but sometimes leaks internal
+-- K_SPECIAL escape bytes (0x80-0xfd) for terminal-only key codes. Encode any
+-- non-printable byte as <bin:HEX> so the JSONL stays valid UTF-8.
+local function sanitize_key(key)
+  return (key:gsub('[^\32-\126]', function(c)
+    return string.format('<bin:%02x>', string.byte(c))
+  end))
+end
+
 local function on_key(key, _typed)
   if not state.enabled then return end
   local bufpath = vim.fn.expand('%:p')
   if not in_notes_root(bufpath) then return end
   write_event({
     ts_ns = vim.uv.hrtime(),
-    key = vim.fn.keytrans(key),
+    key = sanitize_key(vim.fn.keytrans(key)),
     bufpath = bufpath,
     mode = vim.api.nvim_get_mode().mode,
   })

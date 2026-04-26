@@ -16,12 +16,19 @@ def list_session_files() -> list[Path]:
 
 
 def iter_events(path: Path) -> Iterator[dict[str, Any]]:
-    with path.open() as f:
+    # errors='replace' guards against rare non-UTF-8 keys (vim's K_SPECIAL
+    # internal codes occasionally slip past keytrans on terminal-only keys).
+    # Malformed JSON lines are skipped silently — the capture layer should
+    # be the source of truth for log integrity.
+    with path.open(encoding='utf-8', errors='replace') as f:
         for raw in f:
             line = raw.strip()
             if not line:
                 continue
-            yield json.loads(line)
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                continue
 
 
 def iter_all_events() -> Iterator[dict[str, Any]]:
