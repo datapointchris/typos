@@ -12,6 +12,7 @@ from rich.table import Table
 from typos.analyzer import bigram_stats
 from typos.analyzer import compute_iki_variance
 from typos.analyzer import compute_wpm
+from typos.analyzer import damage_deltas
 from typos.analyzer import damage_scores
 from typos.analyzer import display_bigram
 from typos.analyzer import mistyped_words
@@ -124,6 +125,23 @@ def report_cmd(
         for w in words[:top]:
             wtable.add_row(w.word, str(w.typed), str(w.corrections), f'{w.rate * 100:.0f}%')
         console.print(wtable)
+
+    prior_events = list(iter_all_events(since=cutoff_14d, until=cutoff_7d))
+    if prior_events:
+        prior_rec = reconstruct(prior_events)
+        prior_stats = bigram_stats(prior_rec.char_timings)
+        prior_scores = damage_scores(prior_stats)
+        improved, worsened = damage_deltas(prior_scores, scores)
+        if improved:
+            console.print()
+            console.print('[bold]recently improved (damage down >20% week-over-week)[/bold]')
+            for d in improved[:top]:
+                console.print(f'  {display_bigram(d.bigram):<6}  {d.prior_score:.1f} → {d.current_score:.1f}')
+        if worsened:
+            console.print()
+            console.print('[bold]recently worsened (damage up >20% week-over-week)[/bold]')
+            for d in worsened[:top]:
+                console.print(f'  {display_bigram(d.bigram):<6}  {d.prior_score:.1f} → {d.current_score:.1f}')
 
 
 @typos_app.command('problems')

@@ -3,9 +3,11 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
+from typos.analyzer import DamageScore
 from typos.analyzer import bigram_stats
 from typos.analyzer import compute_iki_variance
 from typos.analyzer import compute_wpm
+from typos.analyzer import damage_deltas
 from typos.analyzer import damage_scores
 from typos.analyzer import mistyped_words
 from typos.analyzer import parse_since
@@ -260,6 +262,41 @@ def test_mistyped_words_aggregates_by_word_context() -> None:
     assert cat.typed == 1
     assert cat.corrections == 1
     assert cat.rate == 1.0
+
+
+def make_score(bigram: str, score: float) -> DamageScore:
+    return DamageScore(bigram=bigram, count=10, median_iki_ns=300_000_000, score=score)
+
+
+def test_damage_deltas_classifies_improvements_and_regressions() -> None:
+    prior = [make_score('ab', 8.0), make_score('cd', 2.0), make_score('ef', 5.0)]
+    current = [make_score('ab', 4.0), make_score('cd', 8.0), make_score('ef', 5.1)]
+    improved, worsened = damage_deltas(prior, current)
+    assert {d.bigram for d in improved} == {'ab'}
+    assert {d.bigram for d in worsened} == {'cd'}
+
+
+def test_damage_deltas_threshold_filters_small_changes() -> None:
+    prior = [make_score('ab', 5.0)]
+    current = [make_score('ab', 5.05)]
+    improved, worsened = damage_deltas(prior, current, threshold=0.2)
+    assert not improved
+    assert not worsened
+
+
+def test_damage_deltas_skips_bigrams_only_in_one_window() -> None:
+    prior = [make_score('ab', 5.0)]
+    current = [make_score('cd', 8.0)]
+    improved, worsened = damage_deltas(prior, current)
+    assert not improved
+    assert not worsened
+
+
+def test_damage_deltas_sort_orders_by_magnitude() -> None:
+    prior = [make_score('ab', 10.0), make_score('cd', 10.0), make_score('ef', 10.0)]
+    current = [make_score('ab', 1.0), make_score('cd', 5.0), make_score('ef', 8.0)]
+    improved, _ = damage_deltas(prior, current)
+    assert [d.bigram for d in improved] == ['ab', 'cd']
 
 
 def test_mistyped_words_typed_counts_word_in_final_text() -> None:

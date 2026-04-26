@@ -81,6 +81,14 @@ class DamageScore:
     score: float
 
 
+@dataclass
+class DamageDelta:
+    bigram: str
+    prior_score: float
+    current_score: float
+    delta_pct: float
+
+
 def normalize_key(key: str) -> str | None:
     if key in SPECIAL_TO_CHAR:
         return SPECIAL_TO_CHAR[key]
@@ -245,6 +253,39 @@ def compute_iki_variance(sessions: Iterable[Iterable[dict]]) -> float:
 def variance_ns_to_ms(variance_ns2: float) -> float:
     """Convert ns² variance to ms² for display."""
     return variance_ns2 / 1_000_000_000_000
+
+
+def damage_deltas(
+    prior_scores: list[DamageScore],
+    current_scores: list[DamageScore],
+    threshold: float = 0.2,
+) -> tuple[list[DamageDelta], list[DamageDelta]]:
+    """Classify per-bigram damage deltas as improved or worsened.
+
+    Returns (improved, worsened). Each is sorted by magnitude of change.
+    A bigram is improved when its current damage dropped by more than
+    `threshold` (default 20%) relative to its prior damage, and worsened
+    when it rose by the same. Bigrams missing from one window are skipped.
+    """
+    prior_map = {s.bigram: s.score for s in prior_scores}
+    current_map = {s.bigram: s.score for s in current_scores}
+
+    improved: list[DamageDelta] = []
+    worsened: list[DamageDelta] = []
+    for bg in prior_map.keys() & current_map.keys():
+        prior = prior_map[bg]
+        current = current_map[bg]
+        if prior <= 0:
+            continue
+        delta_pct = (current - prior) / prior
+        if delta_pct < -threshold:
+            improved.append(DamageDelta(bigram=bg, prior_score=prior, current_score=current, delta_pct=delta_pct))
+        elif delta_pct > threshold:
+            worsened.append(DamageDelta(bigram=bg, prior_score=prior, current_score=current, delta_pct=delta_pct))
+
+    improved.sort(key=lambda d: d.delta_pct)
+    worsened.sort(key=lambda d: d.delta_pct, reverse=True)
+    return improved, worsened
 
 
 def mistyped_words(text: str, corrections: list[Correction]) -> list[WordMisstats]:
