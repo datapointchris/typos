@@ -55,6 +55,7 @@ testpaths = ["tests"]
 
 [tool.refurb]
 enable_all = true
+ignore = ["FURB120", "FURB124", "FURB184"]
 
 
 [tool.ruff]
