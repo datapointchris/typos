@@ -14,6 +14,7 @@ from typos.analyzer import compute_iki_variance
 from typos.analyzer import compute_wpm
 from typos.analyzer import damage_scores
 from typos.analyzer import display_bigram
+from typos.analyzer import mistyped_words
 from typos.analyzer import parse_since
 from typos.analyzer import reconstruct
 from typos.analyzer import variance_ns_to_ms
@@ -111,13 +112,27 @@ def report_cmd(
         )
     console.print(table)
 
+    words = mistyped_words(rec.text, rec.corrections)
+    if words:
+        console.print()
+        console.print(f'[bold]top {top} mistyped words[/bold]')
+        wtable = Table(show_header=True, header_style='bold')
+        wtable.add_column('word')
+        wtable.add_column('typed', justify='right')
+        wtable.add_column('corrections', justify='right')
+        wtable.add_column('rate', justify='right')
+        for w in words[:top]:
+            wtable.add_row(w.word, str(w.typed), str(w.corrections), f'{w.rate * 100:.0f}%')
+        console.print(wtable)
+
 
 @typos_app.command('problems')
 def problems_cmd(
-    top: int = typer.Option(10, '--top', help='Number of corrections to show.'),
+    top: int = typer.Option(10, '--top', help='Number of items to show.'),
     since: str = typer.Option('7d', '--since', help='Window: 7d / 30d (relative) or YYYY-MM-DD.'),
+    raw: bool = typer.Option(False, '--raw', help='Show raw (wrong, right) pairs instead of word view.'),
 ) -> None:
-    """Show top corrections — what you typed wrong and how you fixed it."""
+    """Show your most-mistyped words (or raw correction pairs with --raw)."""
     cutoff = parse_since(since)
     events = list(iter_all_events(since=cutoff))
     rec = reconstruct(events)
@@ -125,19 +140,31 @@ def problems_cmd(
         console.print('[yellow]no corrections detected yet[/yellow]')
         return
 
-    counts = Counter((c.wrong, c.right) for c in rec.corrections)
+    if raw:
+        counts = Counter((c.wrong, c.right) for c in rec.corrections)
+        console.print(f'[bold]top {top} correction pairs[/bold]')
+        table = Table(show_header=True, header_style='bold')
+        table.add_column('wrong')
+        table.add_column('right')
+        table.add_column('count', justify='right')
+        for (wrong, right), count in counts.most_common(top):
+            table.add_row(
+                display_bigram(wrong) or '(empty)',
+                display_bigram(right) or '(empty)',
+                str(count),
+            )
+        console.print(table)
+        return
 
-    console.print(f'[bold]top {top} corrections[/bold]')
+    words = mistyped_words(rec.text, rec.corrections)
+    console.print(f'[bold]top {top} mistyped words[/bold]')
     table = Table(show_header=True, header_style='bold')
-    table.add_column('wrong')
-    table.add_column('right')
-    table.add_column('count', justify='right')
-    for (wrong, right), count in counts.most_common(top):
-        table.add_row(
-            display_bigram(wrong) or '(empty)',
-            display_bigram(right) or '(empty)',
-            str(count),
-        )
+    table.add_column('word')
+    table.add_column('typed', justify='right')
+    table.add_column('corrections', justify='right')
+    table.add_column('rate', justify='right')
+    for w in words[:top]:
+        table.add_row(w.word, str(w.typed), str(w.corrections), f'{w.rate * 100:.0f}%')
     console.print(table)
 
 

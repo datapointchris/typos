@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import statistics
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 from dataclasses import field
@@ -40,6 +41,18 @@ class Correction:
     wrong: str
     right: str
     start_ts_ns: int
+    word_context: str = ''
+
+
+@dataclass
+class WordMisstats:
+    word: str
+    typed: int
+    corrections: int
+
+    @property
+    def rate(self) -> float:
+        return self.corrections / self.typed if self.typed else 0.0
 
 
 @dataclass
@@ -76,6 +89,16 @@ def normalize_key(key: str) -> str | None:
     return None
 
 
+def trailing_word(buffer: list[tuple[str, int]]) -> str:
+    """Return the contiguous run of non-whitespace chars at the end of the buffer."""
+    chars: list[str] = []
+    for c, _ in reversed(buffer):
+        if c in ' \n\t':
+            break
+        chars.append(c)
+    return ''.join(reversed(chars))
+
+
 def reconstruct(events: Iterable[dict]) -> Reconstruction:
     buffer: list[tuple[str, int]] = []
     corrections: list[Correction] = []
@@ -91,6 +114,7 @@ def reconstruct(events: Iterable[dict]) -> Reconstruction:
                     wrong=''.join(reversed(pending_deletions)),
                     right=''.join(pending_insertions),
                     start_ts_ns=pending_start_ts or 0,
+                    word_context=trailing_word(buffer),
                 )
             )
         pending_deletions.clear()
@@ -121,6 +145,12 @@ def reconstruct(events: Iterable[dict]) -> Reconstruction:
         if char is None:
             flush()
             continue
+        if pending_deletions and char in ' \n\t':
+            # Word boundary while a correction is in flight — finalize the
+            # correction against the word being typed BEFORE the boundary
+            # char joins the buffer. Otherwise trailing_word reads the empty
+            # space and word_context comes back blank.
+            flush()
         buffer.append((char, ts))
         if pending_deletions:
             pending_insertions.append(char)
@@ -215,3 +245,16 @@ def compute_iki_variance(sessions: Iterable[Iterable[dict]]) -> float:
 def variance_ns_to_ms(variance_ns2: float) -> float:
     """Convert ns² variance to ms² for display."""
     return variance_ns2 / 1_000_000_000_000
+
+
+def mistyped_words(text: str, corrections: list[Correction]) -> list[WordMisstats]:
+    """Aggregate corrections by the word being typed when they fired."""
+    word_counts = Counter(text.split())
+    correction_counts = Counter(c.word_context for c in corrections if c.word_context)
+
+    out: list[WordMisstats] = []
+    for word, ccount in correction_counts.items():
+        typed = max(word_counts.get(word, 0), ccount)
+        out.append(WordMisstats(word=word, typed=typed, corrections=ccount))
+    out.sort(key=lambda w: w.corrections, reverse=True)
+    return out

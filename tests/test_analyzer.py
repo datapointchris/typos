@@ -7,9 +7,11 @@ from typos.analyzer import bigram_stats
 from typos.analyzer import compute_iki_variance
 from typos.analyzer import compute_wpm
 from typos.analyzer import damage_scores
+from typos.analyzer import mistyped_words
 from typos.analyzer import parse_since
 from typos.analyzer import reconstruct
 from typos.analyzer import session_wpm_components
+from typos.analyzer import trailing_word
 from typos.analyzer import variance_ns_to_ms
 from typos.storage import iter_events
 
@@ -202,6 +204,83 @@ def test_compute_iki_variance_aggregates_across_sessions() -> None:
 def test_variance_ns_to_ms_conversion() -> None:
     assert variance_ns_to_ms(1_000_000_000_000) == 1.0
     assert variance_ns_to_ms(0) == 0.0
+
+
+def test_trailing_word_extracts_to_whitespace() -> None:
+    buf = [(c, i) for i, c in enumerate('the cat sat')]
+    assert trailing_word(buf) == 'sat'
+    assert trailing_word([(c, i) for i, c in enumerate('hello\nworld')]) == 'world'
+    assert trailing_word([(c, i) for i, c in enumerate('foo\tbar')]) == 'bar'
+    assert trailing_word([]) == ''
+    assert trailing_word([(c, i) for i, c in enumerate('one ')]) == ''
+
+
+def test_correction_records_word_context() -> None:
+    rec = reconstruct(
+        [
+            event('t', 1),
+            event('h', 2),
+            event('e', 3),
+            event('<Space>', 4),
+            event('c', 5),
+            event('a', 6),
+            event('y', 7),
+            event('<BS>', 8),
+            event('t', 9),
+        ]
+    )
+    assert rec.text == 'the cat'
+    assert len(rec.corrections) == 1
+    assert rec.corrections[0].word_context == 'cat'
+
+
+def test_mistyped_words_aggregates_by_word_context() -> None:
+    rec = reconstruct(
+        [
+            event('t', 1),
+            event('h', 2),
+            event('e', 3),
+            event('<Space>', 4),
+            event('c', 5),
+            event('a', 6),
+            event('y', 7),
+            event('<BS>', 8),
+            event('t', 9),
+            event('<Space>', 10),
+            event('s', 11),
+            event('a', 12),
+            event('y', 13),
+            event('<BS>', 14),
+            event('t', 15),
+        ]
+    )
+    words = mistyped_words(rec.text, rec.corrections)
+    assert {w.word for w in words} == {'cat', 'sat'}
+    cat = next(w for w in words if w.word == 'cat')
+    assert cat.typed == 1
+    assert cat.corrections == 1
+    assert cat.rate == 1.0
+
+
+def test_mistyped_words_typed_counts_word_in_final_text() -> None:
+    rec = reconstruct(
+        [
+            event('t', 1),
+            event('e', 2),
+            event('<BS>', 3),
+            event('h', 4),
+            event('e', 5),
+            event('<Space>', 6),
+            event('t', 7),
+            event('h', 8),
+            event('e', 9),
+        ]
+    )
+    words = mistyped_words(rec.text, rec.corrections)
+    the = next(w for w in words if w.word == 'the')
+    assert the.typed == 2
+    assert the.corrections == 1
+    assert the.rate == 0.5
 
 
 def test_parse_since_relative() -> None:
