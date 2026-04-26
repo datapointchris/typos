@@ -10,11 +10,13 @@ from rich.console import Console
 from rich.table import Table
 
 from typos.analyzer import bigram_stats
+from typos.analyzer import compute_iki_variance
 from typos.analyzer import compute_wpm
 from typos.analyzer import damage_scores
 from typos.analyzer import display_bigram
 from typos.analyzer import parse_since
 from typos.analyzer import reconstruct
+from typos.analyzer import variance_ns_to_ms
 from typos.config import data_dir
 from typos.storage import days_active
 from typos.storage import iter_all_events
@@ -26,6 +28,17 @@ def per_session_events(since: date | None = None, until: date | None = None) -> 
     """Yield event-lists, one per session file, within the given window."""
     for path in list_session_files(since=since, until=until):
         yield list(iter_events(path))
+
+
+def format_iki_variance(current_ns2: float, prior_ns2: float) -> str:
+    current = variance_ns_to_ms(current_ns2)
+    prior = variance_ns_to_ms(prior_ns2)
+    if current == 0 and prior == 0:
+        return '—'
+    if prior == 0:
+        return f'{current:.0f}ms²'
+    direction = 'down' if current < prior else 'up'
+    return f'{current:.0f}ms²  ({direction} from {prior:.0f}ms² last week)'
 
 
 typos_app = typer.Typer(no_args_is_help=True, help='Passive typing analysis from your real prose.')
@@ -61,9 +74,12 @@ def report_cmd(
 
     today = date.today()
     cutoff_7d = today - timedelta(days=7)
+    cutoff_14d = today - timedelta(days=14)
     cutoff_30d = today - timedelta(days=30)
     wpm_7d = compute_wpm(per_session_events(since=cutoff_7d))
     wpm_30d = compute_wpm(per_session_events(since=cutoff_30d))
+    var_current = compute_iki_variance(per_session_events(since=cutoff_7d))
+    var_prior = compute_iki_variance(per_session_events(since=cutoff_14d, until=cutoff_7d))
 
     console.print(f'[bold]typos report — last {since}[/bold]')
     console.print(f'  sessions:     {len(sessions)}')
@@ -73,6 +89,7 @@ def report_cmd(
     console.print(f'  corrections:  {len(rec.corrections)}')
     console.print(f'  WPM (7d):     {wpm_7d:.1f}')
     console.print(f'  WPM (30d):    {wpm_30d:.1f}')
+    console.print(f'  IKI variance: {format_iki_variance(var_current, var_prior)}')
     console.print()
 
     if not scores:

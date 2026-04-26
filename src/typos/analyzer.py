@@ -199,3 +199,19 @@ def compute_wpm(sessions: Iterable[Iterable[dict]]) -> float:
         return 0.0
     minutes = total_active_ns / 1_000_000_000 / 60
     return (total_chars / 5) / minutes
+
+
+def compute_iki_variance(sessions: Iterable[Iterable[dict]]) -> float:
+    """Population variance of typing-burst IKIs (ns²) across sessions."""
+    all_ikis: list[int] = []
+    for events in sessions:
+        rec = reconstruct(events)
+        all_ikis.extend(char_timing_burst_ikis(rec.char_timings))
+    if len(all_ikis) < 2:
+        return 0.0
+    return statistics.pvariance(all_ikis)
+
+
+def variance_ns_to_ms(variance_ns2: float) -> float:
+    """Convert ns² variance to ms² for display."""
+    return variance_ns2 / 1_000_000_000_000

@@ -4,11 +4,13 @@ from datetime import date
 from pathlib import Path
 
 from typos.analyzer import bigram_stats
+from typos.analyzer import compute_iki_variance
 from typos.analyzer import compute_wpm
 from typos.analyzer import damage_scores
 from typos.analyzer import parse_since
 from typos.analyzer import reconstruct
 from typos.analyzer import session_wpm_components
+from typos.analyzer import variance_ns_to_ms
 from typos.storage import iter_events
 
 FIXTURE = Path(__file__).parent / 'fixtures' / 'sample-session.jsonl'
@@ -173,6 +175,33 @@ def test_compute_wpm_aggregates_across_sessions() -> None:
 def test_compute_wpm_zero_with_no_active_time() -> None:
     assert compute_wpm([[event('a', 0)]]) == 0.0
     assert compute_wpm([]) == 0.0
+
+
+def test_compute_iki_variance_zero_with_uniform_speed() -> None:
+    events = [event('a', i * 100_000_000) for i in range(10)]
+    assert compute_iki_variance([events]) == 0.0
+
+
+def test_compute_iki_variance_excludes_idle_gaps() -> None:
+    events = [event('x', 0)]
+    for i in range(4):
+        events.append(event('a', (i + 1) * 100_000_000))
+    events.append(event('b', 10_500_000_000))
+    for i in range(4):
+        events.append(event('c', 10_500_000_000 + (i + 1) * 100_000_000))
+    assert compute_iki_variance([events]) == 0.0
+
+
+def test_compute_iki_variance_aggregates_across_sessions() -> None:
+    session_a = [event('a', i * 100_000_000) for i in range(5)]
+    session_b = [event('b', i * 200_000_000) for i in range(5)]
+    variance = compute_iki_variance([session_a, session_b])
+    assert variance > 0
+
+
+def test_variance_ns_to_ms_conversion() -> None:
+    assert variance_ns_to_ms(1_000_000_000_000) == 1.0
+    assert variance_ns_to_ms(0) == 0.0
 
 
 def test_parse_since_relative() -> None:
