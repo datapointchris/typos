@@ -38,10 +38,13 @@ Then add the Lua plugin to your Neovim config (lazy.nvim example):
 
 | Command | Purpose |
 | ------- | ------- |
-| `typos status` | Show data location, session count, last event time |
-| `typos report` | Show typing report — WPM, top damaging patterns, longitudinal deltas |
-| `typos problems` | Show top damaging bigrams and most-mistyped words |
-| `typos generate` | Generate practice text from current weak patterns |
+| `typos status` | Show data location, session count, latest session file |
+| `typos report` | Totals, WPM 7d/30d, IKI variance, damaging bigrams, mistyped words, week-over-week deltas |
+| `typos problems` | Top mistyped words (`--raw` for raw correction pairs) |
+| `typos generate` | Generate practice text from current weak patterns (stub) |
+
+Both `report` and `problems` accept `--since 7d` (default) or `--since YYYY-MM-DD` to scope
+the window, and `--top N` (default 10) to control table length.
 
 ## Architecture
 
@@ -55,4 +58,5 @@ Two layers, decoupled by the JSONL event log:
 
 Storage default: `~/shart/typing/sessions/YYYY-MM-DD.jsonl`. Override with `TYPOS_DATA_DIR`.
 
-See `CLAUDE.md` for design decisions and `.planning/design.md` for the event schema.
+The event schema (`{ts_ns, key, bufpath, mode}` per line) and the damage-score formula
+are documented in `CLAUDE.md`.

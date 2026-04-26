@@ -29,7 +29,29 @@ boundary — anything that needs raw events goes through it.
 
 - Default: `~/shart/typing/sessions/YYYY-MM-DD.jsonl`
 - Override: `TYPOS_DATA_DIR` env var. Both Lua plugin and Python CLI honor it.
-- Format: one JSON object per line. See `.planning/design.md` for the event schema.
+- Format: one JSON object per line.
+
+### Event schema
+
+```json
+{
+  "ts_ns": 12345678900,
+  "key": "a",
+  "bufpath": "/home/chris/notes/dreams/2026-04-26.md",
+  "mode": "i"
+}
+```
+
+| Field | Type | Notes |
+| ----- | ---- | ----- |
+| `ts_ns` | int | Monotonic-since-boot nanoseconds from `vim.uv.hrtime()`. Within-session IKIs only — ts_ns resets each boot, so callers must group by session file before computing intervals. |
+| `key` | string | Vim keytrans format. Printables: `"a"`, `" "`. Special: `"<BS>"`, `"<CR>"`, `"<Esc>"`, `"<Tab>"`. Internal K_SPECIAL bytes are sanitized to `<bin:HEX>` at write. |
+| `bufpath` | string | Absolute path of the active buffer. Always under `notes_root` (filter happens before write). |
+| `mode` | string | `"i"` insert, `"n"` normal, `"v"` visual, `"c"` cmdline. Insert-mode events are typing; others are navigation. The analyzer filters to `mode == 'i'`. |
+
+The format is intentionally append-only and additive. Future fields are optional; consumers ignore unknown keys. No version field in v1 — if a breaking change is ever needed, the path becomes `sessions/v2/...` and the analyzer reads both transparently.
+
+What is NOT captured: buffer contents (reconstructable from the keystroke stream), window/tab/split context, mouse events, modifiers as separate events (already encoded in keytrans output as e.g. `<C-a>`).
 
 ## Why JSONL not SQLite
 
