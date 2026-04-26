@@ -4,9 +4,11 @@ from datetime import date
 from pathlib import Path
 
 from typos.analyzer import bigram_stats
+from typos.analyzer import compute_wpm
 from typos.analyzer import damage_scores
 from typos.analyzer import parse_since
 from typos.analyzer import reconstruct
+from typos.analyzer import session_wpm_components
 from typos.storage import iter_events
 
 FIXTURE = Path(__file__).parent / 'fixtures' / 'sample-session.jsonl'
@@ -135,6 +137,42 @@ def test_fixture_smoke() -> None:
     assert len(rec.text) > 0
     assert len(stats) > 0
     assert all(s.median_iki_ns > 0 for s in scores)
+
+
+def test_session_wpm_components_excludes_idle_gaps() -> None:
+    # 5 chars, IKIs: 100ms, 100ms, 6_000ms (idle), 100ms.
+    # Idle gap drops out, leaving 300ms total active time.
+    events = [
+        event('a', 0),
+        event('b', 100_000_000),
+        event('c', 200_000_000),
+        event('d', 6_200_000_000),
+        event('e', 6_300_000_000),
+    ]
+    chars, active_ns = session_wpm_components(events)
+    assert chars == 5
+    assert active_ns == 300_000_000
+
+
+def test_session_wpm_components_short_buffer() -> None:
+    chars, active_ns = session_wpm_components([event('a', 0)])
+    assert chars == 1
+    assert active_ns == 0
+
+
+def test_compute_wpm_aggregates_across_sessions() -> None:
+    # Two sessions, each 5 chars over 1 second of active time.
+    # Total: 10 chars / 5 chars-per-word = 2 words; 2 seconds = 1/30 minute.
+    # WPM = 2 / (1/30) = 60.
+    session_a = [event('a', i * 250_000_000) for i in range(5)]
+    session_b = [event('b', i * 250_000_000) for i in range(5)]
+    wpm = compute_wpm([session_a, session_b])
+    assert wpm == 60.0
+
+
+def test_compute_wpm_zero_with_no_active_time() -> None:
+    assert compute_wpm([[event('a', 0)]]) == 0.0
+    assert compute_wpm([]) == 0.0
 
 
 def test_parse_since_relative() -> None:

@@ -29,6 +29,11 @@ SPECIAL_TO_CHAR = {
 
 BACKSPACE = '<BS>'
 
+# Inter-keystroke intervals longer than this count as idle and are excluded
+# from WPM and IKI-variance calculations. 5 seconds covers thinking pauses
+# inside a typing burst without folding in coffee breaks.
+BURST_THRESHOLD_NS = 5_000_000_000
+
 
 @dataclass
 class Correction:
@@ -158,3 +163,39 @@ def damage_scores(stats: dict[str, BigramStats]) -> list[DamageScore]:
 
 def display_bigram(bg: str) -> str:
     return bg.replace(' ', '␣').replace('\n', '↵').replace('\t', '⇥')
+
+
+def char_timing_burst_ikis(char_timings: list[tuple[str, int]]) -> list[int]:
+    """Extract typing-burst IKIs (in ns) from a char_timings list.
+
+    ts_ns from vim.uv.hrtime() is monotonic-since-boot, so IKIs are only
+    meaningful within one session — callers must group char_timings per session.
+    """
+    ikis: list[int] = []
+    for i in range(len(char_timings) - 1):
+        _, t1 = char_timings[i]
+        _, t2 = char_timings[i + 1]
+        gap = t2 - t1
+        if 0 < gap < BURST_THRESHOLD_NS:
+            ikis.append(gap)
+    return ikis
+
+
+def session_wpm_components(events: Iterable[dict]) -> tuple[int, int]:
+    """Return (chars, active_ns) for events from a single boot session."""
+    rec = reconstruct(events)
+    return (len(rec.text), sum(char_timing_burst_ikis(rec.char_timings)))
+
+
+def compute_wpm(sessions: Iterable[Iterable[dict]]) -> float:
+    """Aggregate active-time WPM across sessions: chars/5 over burst minutes."""
+    total_chars = 0
+    total_active_ns = 0
+    for events in sessions:
+        chars, active_ns = session_wpm_components(events)
+        total_chars += chars
+        total_active_ns += active_ns
+    if total_active_ns == 0:
+        return 0.0
+    minutes = total_active_ns / 1_000_000_000 / 60
+    return (total_chars / 5) / minutes

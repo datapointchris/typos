@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterator
+from datetime import date
+from datetime import timedelta
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from typos.analyzer import bigram_stats
+from typos.analyzer import compute_wpm
 from typos.analyzer import damage_scores
 from typos.analyzer import display_bigram
 from typos.analyzer import parse_since
@@ -14,7 +18,15 @@ from typos.analyzer import reconstruct
 from typos.config import data_dir
 from typos.storage import days_active
 from typos.storage import iter_all_events
+from typos.storage import iter_events
 from typos.storage import list_session_files
+
+
+def per_session_events(since: date | None = None, until: date | None = None) -> Iterator[list[dict]]:
+    """Yield event-lists, one per session file, within the given window."""
+    for path in list_session_files(since=since, until=until):
+        yield list(iter_events(path))
+
 
 typos_app = typer.Typer(no_args_is_help=True, help='Passive typing analysis from your real prose.')
 console = Console()
@@ -47,12 +59,20 @@ def report_cmd(
     stats = bigram_stats(rec.char_timings)
     scores = damage_scores(stats)
 
+    today = date.today()
+    cutoff_7d = today - timedelta(days=7)
+    cutoff_30d = today - timedelta(days=30)
+    wpm_7d = compute_wpm(per_session_events(since=cutoff_7d))
+    wpm_30d = compute_wpm(per_session_events(since=cutoff_30d))
+
     console.print(f'[bold]typos report — last {since}[/bold]')
     console.print(f'  sessions:     {len(sessions)}')
     console.print(f'  days active:  {days_active(since=cutoff)}')
     console.print(f'  total chars:  {len(rec.text):,}')
     console.print(f'  bigrams:      {len(stats):,}')
     console.print(f'  corrections:  {len(rec.corrections)}')
+    console.print(f'  WPM (7d):     {wpm_7d:.1f}')
+    console.print(f'  WPM (30d):    {wpm_30d:.1f}')
     console.print()
 
     if not scores:
