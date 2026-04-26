@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 from typos.analyzer import bigram_stats
 from typos.analyzer import damage_scores
+from typos.analyzer import parse_since
 from typos.analyzer import reconstruct
 from typos.storage import iter_events
 
@@ -133,6 +135,21 @@ def test_fixture_smoke() -> None:
     assert len(rec.text) > 0
     assert len(stats) > 0
     assert all(s.median_iki_ns > 0 for s in scores)
+
+
+def test_parse_since_relative() -> None:
+    today = date(2026, 4, 26)
+    assert parse_since('7d', today=today) == date(2026, 4, 19)
+    assert parse_since('30d', today=today) == date(2026, 3, 27)
+
+
+def test_parse_since_absolute() -> None:
+    today = date(2026, 4, 26)
+    assert parse_since('2026-04-20', today=today) == date(2026, 4, 20)
+
+
+def test_parse_since_none() -> None:
+    assert parse_since(None) is None
 
 
 def test_fixture_storage_skips_malformed_bytes() -> None:

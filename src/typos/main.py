@@ -9,8 +9,10 @@ from rich.table import Table
 from typos.analyzer import bigram_stats
 from typos.analyzer import damage_scores
 from typos.analyzer import display_bigram
+from typos.analyzer import parse_since
 from typos.analyzer import reconstruct
 from typos.config import data_dir
+from typos.storage import days_active
 from typos.storage import iter_all_events
 from typos.storage import list_session_files
 
@@ -29,20 +31,25 @@ def status_cmd() -> None:
 
 
 @typos_app.command('report')
-def report_cmd(top: int = typer.Option(10, '--top', help='Number of bigrams to show.')) -> None:
+def report_cmd(
+    top: int = typer.Option(10, '--top', help='Number of bigrams to show.'),
+    since: str = typer.Option('7d', '--since', help='Window: 7d / 30d (relative) or YYYY-MM-DD.'),
+) -> None:
     """Show typing report — totals and top damaging bigrams."""
-    sessions = list_session_files()
+    cutoff = parse_since(since)
+    sessions = list_session_files(since=cutoff)
     if not sessions:
-        console.print('[yellow]no sessions yet[/yellow]')
+        console.print(f'[yellow]no sessions in window (--since {since})[/yellow]')
         return
 
-    events = list(iter_all_events())
+    events = list(iter_all_events(since=cutoff))
     rec = reconstruct(events)
     stats = bigram_stats(rec.char_timings)
     scores = damage_scores(stats)
 
-    console.print('[bold]typos report[/bold]')
+    console.print(f'[bold]typos report — last {since}[/bold]')
     console.print(f'  sessions:     {len(sessions)}')
+    console.print(f'  days active:  {days_active(since=cutoff)}')
     console.print(f'  total chars:  {len(rec.text):,}')
     console.print(f'  bigrams:      {len(stats):,}')
     console.print(f'  corrections:  {len(rec.corrections)}')
@@ -69,9 +76,13 @@ def report_cmd(top: int = typer.Option(10, '--top', help='Number of bigrams to s
 
 
 @typos_app.command('problems')
-def problems_cmd(top: int = typer.Option(10, '--top', help='Number of corrections to show.')) -> None:
+def problems_cmd(
+    top: int = typer.Option(10, '--top', help='Number of corrections to show.'),
+    since: str = typer.Option('7d', '--since', help='Window: 7d / 30d (relative) or YYYY-MM-DD.'),
+) -> None:
     """Show top corrections — what you typed wrong and how you fixed it."""
-    events = list(iter_all_events())
+    cutoff = parse_since(since)
+    events = list(iter_all_events(since=cutoff))
     rec = reconstruct(events)
     if not rec.corrections:
         console.print('[yellow]no corrections detected yet[/yellow]')

@@ -1,9 +1,25 @@
 from __future__ import annotations
 
+import re
 import statistics
 from collections.abc import Iterable
 from dataclasses import dataclass
 from dataclasses import field
+from datetime import date
+from datetime import timedelta
+
+SINCE_RELATIVE = re.compile(r'^(\d+)d$')
+
+
+def parse_since(value: str | None, today: date | None = None) -> date | None:
+    if value is None:
+        return None
+    today = today or date.today()
+    m = SINCE_RELATIVE.match(value)
+    if m:
+        return today - timedelta(days=int(m.group(1)))
+    return date.fromisoformat(value)
+
 
 SPECIAL_TO_CHAR = {
     '<Space>': ' ',
