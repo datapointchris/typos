@@ -113,7 +113,7 @@ repos:
         args: [--fix]
         stages: [pre-commit]
 
-  # Tests
+# > custom:after:python-lint - Test suite
   - repo: local
     hooks:
       - id: pytest
