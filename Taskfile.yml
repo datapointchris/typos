@@ -1,0 +1,60 @@
+version: '3'
+
+# Two languages, no shared runner: the Python analyzer in src/ and the Neovim
+# plugin in lua/. Every verb here has to reach both, which is the whole reason
+# this file exists — `uv run pytest` alone silently covers half the repo.
+
+tasks:
+  default:
+    desc: Show available tasks
+    silent: true
+    cmds:
+      - task --list
+
+  lint:
+    desc: Lint both languages
+    cmds:
+      - task: lint:python
+      - task: lint:lua
+
+  lint:python:
+    desc: Lint the Python analyzer
+    cmds:
+      - uv run ruff check src tests
+
+  lint:lua:
+    desc: Check the Neovim plugin's formatting
+    cmds:
+      - stylua --check lua
+
+  format:
+    desc: Format both languages
+    cmds:
+      - task: format:python
+      - task: format:lua
+
+  format:python:
+    desc: Format the Python analyzer
+    cmds:
+      - uv run ruff format src tests
+      - uv run ruff check --fix src tests
+
+  format:lua:
+    desc: Format the Neovim plugin
+    cmds:
+      - stylua lua
+
+  typecheck:
+    desc: Type check the Python analyzer
+    cmds:
+      - uv run mypy src
+
+  test:
+    desc: Run the Python test suite
+    cmds:
+      - uv run pytest
+
+  install:
+    desc: Install the typos CLI as a uv tool
+    cmds:
+      - uv tool install --force --editable .
