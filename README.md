@@ -15,15 +15,20 @@ Then add the Lua plugin to your Neovim config (lazy.nvim example):
 
 ```lua
 {
-  dir = '~/code/typos',
-  config = function()
-    require('typos').setup({
-      notes_root = vim.fn.expand('~/notes'),
-      data_dir = vim.fn.expand('~/shart/typing'),
-    })
-  end,
+  'datapointchris/typos',
+  ft = 'markdown',
+  cmd = { 'TyposToggle', 'TyposStatus' },
+  opts = {
+    notes_root = vim.fn.expand('~/notes'),
+    data_dir = vim.fn.expand('~/shart/typing'),
+  },
 }
 ```
+
+The spec needs no condition guarding it. Capture is scoped to `notes_root`, so on
+a machine without one the `vim.on_key` hook matches no buffer and writes nothing,
+and `setup()` creates no directories — the data directory appears on the first
+captured keystroke.
 
 ## Commands
 

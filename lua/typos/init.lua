@@ -11,17 +11,17 @@ local state = {
   enabled = true,
   ns = nil,
   session_file = nil,
+  session_dir_ready = false,
   event_count = 0,
 }
 
-local function ensure_dir(path)
-  vim.fn.mkdir(path, "p")
-end
-
+-- Path only; the directory is created by the first captured keystroke instead.
+-- setup() must touch no filesystem: capture is scoped to notes_root, so on a
+-- machine that does not have one this plugin writes nothing at all, and creating
+-- a data directory there would leave a Syncthing-shaped tree on a machine that
+-- syncs nothing.
 local function session_file_path()
-  local sessions = state.opts.data_dir .. "/sessions"
-  ensure_dir(sessions)
-  return sessions .. "/" .. os.date("%Y-%m-%d") .. ".jsonl"
+  return state.opts.data_dir .. "/sessions/" .. os.date("%Y-%m-%d") .. ".jsonl"
 end
 
 local function in_notes_root(path)
@@ -32,6 +32,10 @@ local function in_notes_root(path)
 end
 
 local function write_event(event)
+  if not state.session_dir_ready then
+    vim.fn.mkdir(vim.fs.dirname(state.session_file), "p")
+    state.session_dir_ready = true
+  end
   local file = io.open(state.session_file, "a")
   if not file then
     return
