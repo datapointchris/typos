@@ -17,18 +17,21 @@ Then add the Lua plugin to your Neovim config (lazy.nvim example):
 {
   'datapointchris/typos',
   ft = 'markdown',
-  cmd = { 'TyposToggle', 'TyposStatus' },
+  cmd = { 'TyposOn', 'TyposOff', 'TyposAuto', 'TyposStatus' },
   opts = {
-    notes_root = vim.fn.expand('~/notes'),
-    data_dir = vim.fn.expand('~/shart/typing'),
+    dirs = { '~/notes', '~/shart/writing' },
+    data_dir = '~/shart/typing',
   },
 }
 ```
 
-The spec needs no condition guarding it. Capture is scoped to `notes_root`, so on
-a machine without one the `vim.on_key` hook matches no buffer and writes nothing,
-and `setup()` creates no directories — the data directory appears on the first
-captured keystroke.
+`dirs` is the auto-on list: capture runs whenever the current buffer sits under
+one of them, and stays off everywhere else. A single directory may be given as a
+bare string, and `~` is expanded for you.
+
+The spec needs no condition guarding it. A machine configured with directories it
+does not have captures nothing, and `setup()` creates no directories either — the
+data directory appears with the first captured keystroke.
 
 ## Commands
 
@@ -36,8 +39,15 @@ captured keystroke.
 
 | Command | Purpose |
 | ------- | ------- |
-| `:TyposToggle` | Enable/disable capture for the current session |
-| `:TyposStatus` | Show capture state, session file path, event count |
+| `:TyposOn` | Capture in every buffer this session, ignoring `dirs` |
+| `:TyposOff` | Stop capture this session, including inside `dirs` |
+| `:TyposAuto` | Return to following `dirs` (the default) |
+| `:TyposStatus` | Show capture state, scope, session file path, event count |
+
+`On` and `Off` are a session override on top of `dirs`, so each is idempotent and
+a keybind can assert a state without reading the current one first. Neither is
+persisted: a remembered "off" is how you lose weeks of capture without noticing,
+so the worst case is losing the session you turned off in.
 
 ### CLI
 
@@ -55,8 +65,9 @@ the window, and `--top N` (default 10) to control table length.
 
 Two layers, decoupled by the JSONL event log:
 
-- **Capture** (`lua/typos/init.lua`): Hooks `vim.on_key()`, writes events when buffer path
-  is under `notes_root`. Per-session toggle. No daemon — the data file is the state.
+- **Capture** (`lua/typos/init.lua`): Hooks `vim.on_key()`, writes events when the buffer
+  path is under one of `dirs`, with a per-session command override. No daemon — the data
+  file is the state.
 - **Analysis** (`src/typos/`): Python CLI. Reads JSONL, reconstructs correction events,
   computes damage scores, surfaces patterns. Mirrors the three-layer pattern from `relate`:
   `storage.py` → `analyzer.py` → `main.py`.

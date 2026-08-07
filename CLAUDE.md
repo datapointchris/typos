@@ -3,8 +3,8 @@
 ## Purpose
 
 `typos` is a passive typing analyzer. It captures keystrokes while you write real prose in
-Neovim (default scope: `~/notes/`) and surfaces patterns: damaging bigrams, mistyped
-words, typing rhythm consistency over time.
+Neovim (auto-on inside the configured `dirs`, `~/notes/` by default) and surfaces patterns:
+damaging bigrams, mistyped words, typing rhythm consistency over time.
 
 The system is explicitly NOT a typing trainer. It instruments the typing you already do.
 Practice generation, when implemented, pulls from real captured patterns and your own
@@ -13,8 +13,9 @@ prose corpus — never canned word lists.
 ## Two-Layer Architecture
 
 ```yaml
-lua/typos/init.lua    Capture layer. vim.on_key() hook scoped to notes_root. Writes
-                      append-only JSONL. Per-session toggle via :TyposToggle. No daemon.
+lua/typos/init.lua    Capture layer. vim.on_key() hook, on while the buffer is under
+                      one of the configured `dirs`. Writes append-only JSONL. Session
+                      override via :TyposOn / :TyposOff / :TyposAuto. No daemon.
 
 src/typos/storage.py  Pure JSONL I/O. Append events, iterate sessions. No analysis logic.
 src/typos/analyzer.py Correction-event reconstruction, damage scoring, longitudinal stats.
@@ -46,7 +47,7 @@ boundary — anything that needs raw events goes through it.
 | ----- | ---- | ----- |
 | `ts_ns` | int | Monotonic-since-boot nanoseconds from `vim.uv.hrtime()`. Within-session IKIs only — ts_ns resets each boot, so callers must group by session file before computing intervals. |
 | `key` | string | Vim keytrans format. Printables: `"a"`, `" "`. Special: `"<BS>"`, `"<CR>"`, `"<Esc>"`, `"<Tab>"`. Internal K_SPECIAL bytes are sanitized to `<bin:HEX>` at write. |
-| `bufpath` | string | Absolute path of the active buffer. Always under `notes_root` (filter happens before write). |
+| `bufpath` | string | Absolute path of the active buffer. Under one of the configured `dirs` unless `:TyposOn` forced capture on elsewhere; the check happens before write. |
 | `mode` | string | `"i"` insert, `"n"` normal, `"v"` visual, `"c"` cmdline. Insert-mode events are typing; others are navigation. The analyzer filters to `mode == 'i'`. |
 
 The format is intentionally append-only and additive. Future fields are optional; consumers ignore unknown keys. No version field in v1 — if a breaking change is ever needed, the path becomes `sessions/v2/...` and the analyzer reads both transparently.
@@ -61,11 +62,23 @@ is trivial. No schema migrations as the analysis evolves. At expected event rate
 territory for years. SQLite would add a query-language layer between the events and the
 analyzer for no real gain at this scale.
 
-## Why per-session toggle, not persistent
+## Why a session override, not a persisted switch
 
 A persisted "disabled" flag means you can forget you turned capture off and silently lose
-weeks of data. Per-session means worst case you lose one session, and the next nvim start
-restores capture. The asymmetry favors recoverability.
+weeks of data. A session override means worst case you lose one session, and the next nvim
+start goes back to following `dirs`. The asymmetry favors recoverability.
+
+The override is three-state — forced on, forced off, or following `dirs` — which is why
+there is no toggle command: over three states a flip has no single obvious meaning.
+`:TyposOn` and `:TyposOff` each assert one state, so they are idempotent and safe to bind.
+
+## Why the directory list rather than a mode
+
+Capture answers "am I writing prose", and the buffer path is that question, not a proxy for
+it. Reading it per keystroke cannot drift the way a mode set by an autocmd would — no
+BufEnter bookkeeping to get wrong across splits, tabs, terminals, or a file moved
+mid-session — and it costs one prefix comparison against a list that is almost always one
+entry long.
 
 ## Why no keyboard detection
 
