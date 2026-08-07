@@ -3,8 +3,8 @@
 ## Purpose
 
 `typos` is a passive typing analyzer. It captures keystrokes while you write real prose in
-Neovim (auto-on inside the configured `dirs`, `~/notes/` by default) and surfaces patterns:
-damaging bigrams, mistyped words, typing rhythm consistency over time.
+Neovim (auto-on inside the configured `watch_dirs`, which have no default) and surfaces
+patterns: damaging bigrams, mistyped words, typing rhythm consistency over time.
 
 The system is explicitly NOT a typing trainer. It instruments the typing you already do.
 Practice generation, when implemented, pulls from real captured patterns and your own
@@ -14,7 +14,7 @@ prose corpus — never canned word lists.
 
 ```yaml
 lua/typos/init.lua    Capture layer. vim.on_key() hook, on while the buffer is under
-                      one of the configured `dirs`. Writes append-only JSONL. Session
+                      one of the configured `watch_dirs`. Writes append-only JSONL. Session
                       override via :TyposOn / :TyposOff / :TyposAuto. No daemon.
 
 src/typos/storage.py  Pure JSONL I/O. Append events, iterate sessions. No analysis logic.
@@ -28,7 +28,7 @@ boundary — anything that needs raw events goes through it.
 
 ## Storage
 
-- Default: `~/shart/typing/sessions/YYYY-MM-DD.jsonl`
+- Default: `$XDG_STATE_HOME/typos/sessions/YYYY-MM-DD.jsonl` (fallback `~/.local/state/typos`)
 - Override: `TYPOS_DATA_DIR` env var. Both Lua plugin and Python CLI honor it.
 - Format: one JSON object per line.
 
@@ -47,7 +47,7 @@ boundary — anything that needs raw events goes through it.
 | ----- | ---- | ----- |
 | `ts_ns` | int | Monotonic-since-boot nanoseconds from `vim.uv.hrtime()`. Within-session IKIs only — ts_ns resets each boot, so callers must group by session file before computing intervals. |
 | `key` | string | Vim keytrans format. Printables: `"a"`, `" "`. Special: `"<BS>"`, `"<CR>"`, `"<Esc>"`, `"<Tab>"`. Internal K_SPECIAL bytes are sanitized to `<bin:HEX>` at write. |
-| `bufpath` | string | Absolute path of the active buffer. Under one of the configured `dirs` unless `:TyposOn` forced capture on elsewhere; the check happens before write. |
+| `bufpath` | string | Absolute path of the active buffer. Under one of the configured `watch_dirs` unless `:TyposOn` forced capture on elsewhere; the check happens before write. |
 | `mode` | string | `"i"` insert, `"n"` normal, `"v"` visual, `"c"` cmdline. Insert-mode events are typing; others are navigation. The analyzer filters to `mode == 'i'`. |
 
 The format is intentionally append-only and additive. Future fields are optional; consumers ignore unknown keys. No version field in v1 — if a breaking change is ever needed, the path becomes `sessions/v2/...` and the analyzer reads both transparently.
@@ -66,9 +66,9 @@ analyzer for no real gain at this scale.
 
 A persisted "disabled" flag means you can forget you turned capture off and silently lose
 weeks of data. A session override means worst case you lose one session, and the next nvim
-start goes back to following `dirs`. The asymmetry favors recoverability.
+start goes back to following `watch_dirs`. The asymmetry favors recoverability.
 
-The override is three-state — forced on, forced off, or following `dirs` — which is why
+The override is three-state — forced on, forced off, or following `watch_dirs` — which is why
 there is no toggle command: over three states a flip has no single obvious meaning.
 `:TyposOn` and `:TyposOff` each assert one state, so they are idempotent and safe to bind.
 
@@ -82,8 +82,7 @@ entry long.
 
 ## Why no keyboard detection
 
-The user's only realistic typing-into-`~/notes` workflow uses one specific external
-keyboard. Any other case (laptop built-in, etc.) is rare enough that the noise is
+The only realistic prose-writing workflow uses one specific external keyboard. Any other case (laptop built-in, etc.) is rare enough that the noise is
 acceptable. Detection would require an out-of-band evdev process or a `/dev/input/by-id/`
 poll, both of which add platform-specific complexity for marginal gain.
 

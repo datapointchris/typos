@@ -1,8 +1,26 @@
 local M = {}
 
+-- Captured sessions are state, not data: they survive across runs, no human
+-- authored them, and deleting one changes what the analyzer reports rather than
+-- costing a recompute. src/typos/config.py resolves this identically — the two
+-- halves have to agree on the path without either knowing the other's machine.
+local function default_data_dir()
+  if vim.env.TYPOS_DATA_DIR and vim.env.TYPOS_DATA_DIR ~= "" then
+    return vim.env.TYPOS_DATA_DIR
+  end
+  if vim.env.XDG_STATE_HOME and vim.env.XDG_STATE_HOME ~= "" then
+    return vim.env.XDG_STATE_HOME .. "/typos"
+  end
+  return "~/.local/state/typos"
+end
+
+-- watch_dirs is empty on purpose. This plugin knows nothing about whose machine
+-- it is on, so it watches nothing until a config says where that person's prose
+-- lives; a default like "~/notes" would be one user's layout shipped as though
+-- it were everyone's.
 local default_opts = {
-  dirs = { "~/notes" },
-  data_dir = vim.env.TYPOS_DATA_DIR or "~/shart/typing",
+  watch_dirs = {},
+  data_dir = default_data_dir(),
 }
 
 local state = {
@@ -14,10 +32,10 @@ local state = {
   event_count = 0,
 }
 
--- Capture is on when the current buffer sits under one of `dirs`, and the
+-- Capture is on when the current buffer sits under one of `watch_dirs`, and the
 -- commands are an override on top of that. Two concerns, deliberately not
--- collapsed: `dirs` says where prose lives, the override says "not right now" or
--- "yes, here too, just this session".
+-- collapsed: `watch_dirs` says where prose lives, the override says "not right
+-- now" or "yes, here too, just this session".
 --
 -- The override is nil by default and never persisted. A remembered "off" is the
 -- one failure this design will not accept — you would forget, and lose weeks of
@@ -45,17 +63,17 @@ local function normalize_dirs(dirs)
 end
 
 -- Path only; the directory is created by the first captured keystroke instead.
--- setup() must touch no filesystem, so that a machine configured with dirs it
--- does not have writes nothing and leaves nothing behind.
+-- setup() must touch no filesystem, so that a machine whose watch_dirs are absent
+-- writes nothing and leaves nothing behind.
 local function session_file_path()
   return state.opts.data_dir .. "/sessions/" .. os.date("%Y-%m-%d") .. ".jsonl"
 end
 
-local function in_configured_dirs(path)
+local function in_watch_dirs(path)
   if not path or path == "" then
     return false
   end
-  for _, dir in ipairs(state.opts.dirs) do
+  for _, dir in ipairs(state.opts.watch_dirs) do
     if vim.startswith(path, dir) then
       return true
     end
@@ -67,7 +85,7 @@ local function capturing(bufpath)
   if state.override ~= nil then
     return state.override
   end
-  return in_configured_dirs(bufpath)
+  return in_watch_dirs(bufpath)
 end
 
 local function write_event(event)
@@ -107,11 +125,21 @@ local function on_key(key, _typed)
   })
 end
 
-local function describe_state()
-  if state.override == nil then
-    return "auto" .. (in_configured_dirs(vim.fn.expand("%:p")) and " (on here)" or " (off here)")
+local function describe_scope()
+  if #state.opts.watch_dirs == 0 then
+    return "none configured"
   end
-  return state.override and "forced on" or "forced off"
+  return table.concat(state.opts.watch_dirs, ", ")
+end
+
+local function describe_state()
+  if state.override ~= nil then
+    return state.override and "forced on" or "forced off"
+  end
+  if #state.opts.watch_dirs == 0 then
+    return "auto (no watch_dirs, so off everywhere)"
+  end
+  return "auto" .. (in_watch_dirs(vim.fn.expand("%:p")) and " (on here)" or " (off here)")
 end
 
 function M.setup(opts)
@@ -120,7 +148,7 @@ function M.setup(opts)
   -- Assigned after the merge, never through it: a deep extend of two lists
   -- merges them by index, so a shorter configured list would inherit whatever
   -- the default holds past its end.
-  state.opts.dirs = normalize_dirs(opts.dirs or default_opts.dirs)
+  state.opts.watch_dirs = normalize_dirs(opts.watch_dirs or default_opts.watch_dirs)
   state.opts.data_dir = vim.fn.expand(state.opts.data_dir)
 
   state.session_file = session_file_path()
@@ -133,24 +161,24 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("TyposOn", function()
     state.override = true
     vim.notify("typos: capture on everywhere for this session")
-  end, { desc = "Capture in every buffer, ignoring the configured dirs" })
+  end, { desc = "Capture in every buffer, ignoring watch_dirs" })
 
   vim.api.nvim_create_user_command("TyposOff", function()
     state.override = false
     vim.notify("typos: capture off for this session")
-  end, { desc = "Stop capture everywhere, including the configured dirs" })
+  end, { desc = "Stop capture everywhere, including inside watch_dirs" })
 
   vim.api.nvim_create_user_command("TyposAuto", function()
     state.override = nil
-    vim.notify("typos: capture follows " .. table.concat(state.opts.dirs, ", "))
-  end, { desc = "Return capture to following the configured dirs" })
+    vim.notify("typos: capture follows " .. describe_scope())
+  end, { desc = "Return capture to following watch_dirs" })
 
   vim.api.nvim_create_user_command("TyposStatus", function()
     vim.notify(
       string.format(
-        "typos: %s | dirs=%s | session=%s | events=%d",
+        "typos: %s | watch_dirs=%s | session=%s | events=%d",
         describe_state(),
-        table.concat(state.opts.dirs, ", "),
+        describe_scope(),
         state.session_file,
         state.event_count
       )

@@ -19,19 +19,19 @@ Then add the Lua plugin to your Neovim config (lazy.nvim example):
   ft = 'markdown',
   cmd = { 'TyposOn', 'TyposOff', 'TyposAuto', 'TyposStatus' },
   opts = {
-    dirs = { '~/notes', '~/shart/writing' },
-    data_dir = '~/shart/typing',
+    watch_dirs = { '~/notes', '~/writing' },
   },
 }
 ```
 
-`dirs` is the auto-on list: capture runs whenever the current buffer sits under
-one of them, and stays off everywhere else. A single directory may be given as a
-bare string, and `~` is expanded for you.
+`watch_dirs` is the auto-on list: capture runs whenever the current buffer sits
+under one of them, and stays off everywhere else. There is no default — the plugin
+has no idea where your prose lives, so it watches nothing until you say. A single
+directory may be given as a bare string, and `~` is expanded for you.
 
-The spec needs no condition guarding it. A machine configured with directories it
-does not have captures nothing, and `setup()` creates no directories either — the
-data directory appears with the first captured keystroke.
+The spec needs no condition guarding it. A machine whose `watch_dirs` are absent
+captures nothing, and `setup()` creates no directories either — the session
+directory appears with the first captured keystroke.
 
 ## Commands
 
@@ -39,12 +39,12 @@ data directory appears with the first captured keystroke.
 
 | Command | Purpose |
 | ------- | ------- |
-| `:TyposOn` | Capture in every buffer this session, ignoring `dirs` |
-| `:TyposOff` | Stop capture this session, including inside `dirs` |
-| `:TyposAuto` | Return to following `dirs` (the default) |
+| `:TyposOn` | Capture in every buffer this session, ignoring `watch_dirs` |
+| `:TyposOff` | Stop capture this session, including inside `watch_dirs` |
+| `:TyposAuto` | Return to following `watch_dirs` (the default) |
 | `:TyposStatus` | Show capture state, scope, session file path, event count |
 
-`On` and `Off` are a session override on top of `dirs`, so each is idempotent and
+`On` and `Off` are a session override on top of `watch_dirs`, so each is idempotent and
 a keybind can assert a state without reading the current one first. Neither is
 persisted: a remembered "off" is how you lose weeks of capture without noticing,
 so the worst case is losing the session you turned off in.
@@ -66,13 +66,14 @@ the window, and `--top N` (default 10) to control table length.
 Two layers, decoupled by the JSONL event log:
 
 - **Capture** (`lua/typos/init.lua`): Hooks `vim.on_key()`, writes events when the buffer
-  path is under one of `dirs`, with a per-session command override. No daemon — the data
+  path is under one of `watch_dirs`, with a per-session command override. No daemon — the data
   file is the state.
 - **Analysis** (`src/typos/`): Python CLI. Reads JSONL, reconstructs correction events,
   computes damage scores, surfaces patterns. Mirrors the three-layer pattern from `relate`:
   `storage.py` → `analyzer.py` → `main.py`.
 
-Storage default: `~/shart/typing/sessions/YYYY-MM-DD.jsonl`. Override with `TYPOS_DATA_DIR`.
+Storage default: `$XDG_STATE_HOME/typos/sessions/YYYY-MM-DD.jsonl`, falling back to
+`~/.local/state/typos`. Override with `TYPOS_DATA_DIR`, which both halves read.
 
 The event schema (`{ts_ns, key, bufpath, mode}` per line) and the damage-score formula
 are documented in `CLAUDE.md`.
