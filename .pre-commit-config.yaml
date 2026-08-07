@@ -166,6 +166,18 @@ repos:
         always_run: false
         stages: [pre-commit]
 
+      # types: [lua] rather than always_run, to match pytest above: the capture
+      # tests drive real nvim, so they are worth their second only when lua/ or
+      # the tests themselves changed.
+      - id: capture-tests
+        name: capture tests (nvim)
+        entry: nvim --headless -u NONE -l tests/capture_spec.lua
+        language: system
+        types: [lua]
+        pass_filenames: false
+        always_run: false
+        stages: [pre-commit]
+
 # generated:lua - Lua
   - repo: https://github.com/JohnnyMorganz/StyLua
     rev: v2.5.2

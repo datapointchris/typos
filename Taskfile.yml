@@ -50,9 +50,20 @@ tasks:
       - uv run mypy src
 
   test:
+    desc: Test both languages
+    cmds:
+      - task: test:python
+      - task: test:lua
+
+  test:python:
     desc: Run the Python test suite
     cmds:
       - uv run pytest
+
+  test:lua:
+    desc: Run the Neovim capture tests
+    cmds:
+      - nvim --headless -u NONE -l tests/capture_spec.lua
 
   install:
     desc: Install the typos CLI as a uv tool
