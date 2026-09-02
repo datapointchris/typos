@@ -16,8 +16,8 @@ from typos.analyzer import damage_deltas
 from typos.analyzer import damage_scores
 from typos.analyzer import display_bigram
 from typos.analyzer import mistyped_words
-from typos.analyzer import parse_since
 from typos.analyzer import reconstruct
+from typos.analyzer import resolve_window
 from typos.analyzer import variance_ns_to_ms
 from typos.config import data_dir
 from typos.storage import days_active
@@ -30,6 +30,13 @@ def per_session_events(since: date | None = None, until: date | None = None) -> 
     """Yield event-lists, one per session file, within the given window."""
     for path in list_session_files(since=since, until=until):
         yield list(iter_events(path))
+
+
+def describe_window(since: str, cutoff: date | None, until_cutoff: date | None) -> str:
+    """Name the analysed window, spelling out both edges once one is closed."""
+    if until_cutoff is None:
+        return f'last {since}'
+    return f'{cutoff} to {until_cutoff} (exclusive)'
 
 
 def format_iki_variance(current_ns2: float, prior_ns2: float) -> str:
@@ -60,32 +67,37 @@ def status_cmd() -> None:
 @typos_app.command('report')
 def report_cmd(
     top: int = typer.Option(10, '--top', help='Number of bigrams to show.'),
-    since: str = typer.Option('7d', '--since', help='Window: 7d / 30d (relative) or YYYY-MM-DD.'),
+    since: str = typer.Option('7d', '--since', help='Start of the window, inclusive: <N>d (relative) or YYYY-MM-DD.'),
+    until: str | None = typer.Option(
+        None,
+        '--until',
+        help='End of the window, exclusive: <N>d (relative) or YYYY-MM-DD. Every window the report derives ends here.',
+    ),
 ) -> None:
     """Show typing report — totals and top damaging bigrams."""
-    cutoff = parse_since(since)
-    sessions = list_session_files(since=cutoff)
+    cutoff, until_cutoff = resolve_window(since, until)
+    sessions = list_session_files(since=cutoff, until=until_cutoff)
     if not sessions:
-        console.print(f'[yellow]no sessions in window (--since {since})[/yellow]')
+        console.print(f'[yellow]no sessions in window ({describe_window(since, cutoff, until_cutoff)})[/yellow]')
         return
 
-    events = list(iter_all_events(since=cutoff))
+    events = list(iter_all_events(since=cutoff, until=until_cutoff))
     rec = reconstruct(events)
     stats = bigram_stats(rec.char_timings)
     scores = damage_scores(stats)
 
-    today = date.today()
-    cutoff_7d = today - timedelta(days=7)
-    cutoff_14d = today - timedelta(days=14)
-    cutoff_30d = today - timedelta(days=30)
-    wpm_7d = compute_wpm(per_session_events(since=cutoff_7d))
-    wpm_30d = compute_wpm(per_session_events(since=cutoff_30d))
-    var_current = compute_iki_variance(per_session_events(since=cutoff_7d))
+    anchor = until_cutoff or date.today()
+    cutoff_7d = anchor - timedelta(days=7)
+    cutoff_14d = anchor - timedelta(days=14)
+    cutoff_30d = anchor - timedelta(days=30)
+    wpm_7d = compute_wpm(per_session_events(since=cutoff_7d, until=until_cutoff))
+    wpm_30d = compute_wpm(per_session_events(since=cutoff_30d, until=until_cutoff))
+    var_current = compute_iki_variance(per_session_events(since=cutoff_7d, until=until_cutoff))
     var_prior = compute_iki_variance(per_session_events(since=cutoff_14d, until=cutoff_7d))
 
-    console.print(f'[bold]typos report — last {since}[/bold]')
+    console.print(f'[bold]typos report — {describe_window(since, cutoff, until_cutoff)}[/bold]')
     console.print(f'  sessions:     {len(sessions)}')
-    console.print(f'  days active:  {days_active(since=cutoff)}')
+    console.print(f'  days active:  {days_active(since=cutoff, until=until_cutoff)}')
     console.print(f'  total chars:  {len(rec.text):,}')
     console.print(f'  bigrams:      {len(stats):,}')
     console.print(f'  corrections:  {len(rec.corrections)}')
@@ -147,12 +159,17 @@ def report_cmd(
 @typos_app.command('problems')
 def problems_cmd(
     top: int = typer.Option(10, '--top', help='Number of items to show.'),
-    since: str = typer.Option('7d', '--since', help='Window: 7d / 30d (relative) or YYYY-MM-DD.'),
+    since: str = typer.Option('7d', '--since', help='Start of the window, inclusive: <N>d (relative) or YYYY-MM-DD.'),
+    until: str | None = typer.Option(
+        None,
+        '--until',
+        help='End of the window, exclusive: <N>d (relative) or YYYY-MM-DD. A relative --since counts back from here.',
+    ),
     raw: bool = typer.Option(False, '--raw', help='Show raw (wrong, right) pairs instead of word view.'),
 ) -> None:
     """Show your most-mistyped words (or raw correction pairs with --raw)."""
-    cutoff = parse_since(since)
-    events = list(iter_all_events(since=cutoff))
+    cutoff, until_cutoff = resolve_window(since, until)
+    events = list(iter_all_events(since=cutoff, until=until_cutoff))
     rec = reconstruct(events)
     if not rec.corrections:
         console.print('[yellow]no corrections detected yet[/yellow]')

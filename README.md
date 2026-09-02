@@ -58,8 +58,11 @@ so the worst case is losing the session you turned off in.
 | `typos problems` | Top mistyped words (`--raw` for raw correction pairs) |
 | `typos generate` | Generate practice text from current weak patterns (stub) |
 
-Both `report` and `problems` accept `--since 7d` (default) or `--since YYYY-MM-DD` to scope
-the window, and `--top N` (default 10) to control table length.
+Both `report` and `problems` scope the analysis with `--since` (default `7d`) and `--until`,
+each taking `<N>d` or `YYYY-MM-DD`. The window is half-open — `--since` is inclusive, `--until`
+is exclusive. `--until` is the frame of reference for everything downstream of it: a relative
+`--since` counts back from it, and so do the windows `report` derives for WPM, IKI variance,
+and the week-over-week deltas. `--top N` (default 10) controls table length.
 
 ## Architecture
 

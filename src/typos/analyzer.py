@@ -22,6 +22,23 @@ def parse_since(value: str | None, today: date | None = None) -> date | None:
     return date.fromisoformat(value)
 
 
+def resolve_window(
+    since: str | None,
+    until: str | None,
+    today: date | None = None,
+) -> tuple[date | None, date | None]:
+    """Resolve a --since/--until pair into the half-open date window [since, until).
+
+    `until` is the report's frame of reference, so a relative `since` counts back
+    from it rather than from the current date: `--since 7d --until 2026-07-01`
+    asks about 2026-06-24 through 2026-06-30. An absolute `since` is unaffected,
+    and with no `until` the window has no upper bound.
+    """
+    today = today or date.today()
+    until_date = parse_since(until, today=today)
+    return parse_since(since, today=until_date or today), until_date
+
+
 SPECIAL_TO_CHAR = {
     '<Space>': ' ',
     '<CR>': '\n',
