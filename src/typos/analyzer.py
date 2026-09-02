@@ -279,7 +279,10 @@ def damage_deltas(
 ) -> tuple[list[DamageDelta], list[DamageDelta]]:
     """Classify per-bigram damage deltas as improved or worsened.
 
-    Returns (improved, worsened). Each is sorted by magnitude of change.
+    Returns (improved, worsened). Each is sorted by magnitude of change, then
+    by bigram — a bigram that falls out of the current window scores exactly
+    -100%, so ties are the common case rather than the rare one, and the
+    bigram breaks them into an order that does not move between runs.
     A bigram is improved when its current damage dropped by more than
     `threshold` (default 20%) relative to its prior damage, and worsened
     when it rose by the same. Bigrams missing from one window are skipped.
@@ -300,8 +303,8 @@ def damage_deltas(
         elif delta_pct > threshold:
             worsened.append(DamageDelta(bigram=bg, prior_score=prior, current_score=current, delta_pct=delta_pct))
 
-    improved.sort(key=lambda d: d.delta_pct)
-    worsened.sort(key=lambda d: d.delta_pct, reverse=True)
+    improved.sort(key=lambda d: (d.delta_pct, d.bigram))
+    worsened.sort(key=lambda d: (-d.delta_pct, d.bigram))
     return improved, worsened
 
 

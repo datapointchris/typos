@@ -300,6 +300,22 @@ def test_damage_deltas_sort_orders_by_magnitude() -> None:
     assert [d.bigram for d in improved] == ['ab', 'cd']
 
 
+def test_damage_deltas_breaks_ties_by_bigram() -> None:
+    tied = ['ha', 'ge', 'fb', 'dc', 'cd', 'bf', 'eg', 'ah']
+    prior = [make_score(bg, 10.0) for bg in tied]
+    current = [make_score(bg, 0.0) for bg in tied]
+    improved, _ = damage_deltas(prior, current)
+    assert [d.bigram for d in improved] == sorted(tied)
+
+
+def test_damage_deltas_breaks_worsened_ties_by_bigram() -> None:
+    tied = ['ha', 'ge', 'fb', 'dc', 'cd', 'bf', 'eg', 'ah']
+    prior = [make_score(bg, 1.0) for bg in tied]
+    current = [make_score(bg, 10.0) for bg in tied]
+    _, worsened = damage_deltas(prior, current)
+    assert [d.bigram for d in worsened] == sorted(tied)
+
+
 def test_mistyped_words_typed_counts_word_in_final_text() -> None:
     rec = reconstruct(
         [
