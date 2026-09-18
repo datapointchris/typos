@@ -10,21 +10,13 @@ The system is explicitly NOT a typing trainer. It instruments the typing you alr
 Practice generation, when implemented, pulls from real captured patterns and your own
 prose corpus — never canned word lists.
 
-## Two-Layer Architecture
+## Two layers, and storage is the boundary
 
-```yaml
-lua/typos/init.lua    Capture layer. vim.on_key() hook, on while the buffer is under
-                      one of the configured `watch_dirs`. Writes append-only JSONL. Session
-                      override via :TyposOn / :TyposOff / :TyposAuto. No daemon.
-
-src/typos/storage.py  Pure JSONL I/O. Append events, iterate sessions. No analysis logic.
-src/typos/analyzer.py Correction-event reconstruction, damage scoring, longitudinal stats.
-src/typos/main.py     Typer CLI. Thin commands consuming analyzer.py.
-src/typos/config.py   Paths, env var overrides, defaults.
-```
-
-CLI commands consume analyzer outputs. Analyzer consumes storage events. Storage is the
-boundary — anything that needs raw events goes through it.
+The capture layer is `lua/typos/init.lua`: a `vim.on_key()` hook that writes append-only JSONL
+while the buffer is under a configured `watch_dirs` entry, overridden per session by `:TyposOn`,
+`:TyposOff` and `:TyposAuto`. There is no daemon. The analysis layer is `src/typos/`, where the
+CLI consumes the analyzer, the analyzer consumes storage events, and `storage.py` holds no
+analysis logic. Storage is the boundary — anything that needs raw events goes through it.
 
 ## Storage
 
