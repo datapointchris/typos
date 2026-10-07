@@ -72,7 +72,7 @@ Two layers, decoupled by the JSONL event log:
   path is under one of `watch_dirs`, with a per-session command override. No daemon — the data
   file is the state.
 - **Analysis** (`src/typos/`): Python CLI. Reads JSONL, reconstructs correction events,
-  computes damage scores, surfaces patterns. Mirrors the three-layer pattern from `relate`:
+  computes damage scores, surfaces patterns. Mirrors the three-layer pattern from `digest`:
   `storage.py` → `analyzer.py` → `main.py`.
 
 Storage default: `$XDG_STATE_HOME/typos/sessions/YYYY-MM-DD.jsonl`, falling back to
