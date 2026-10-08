@@ -1,9 +1,8 @@
 from __future__ import annotations
 
+import datetime as dt
 from collections import Counter
 from collections.abc import Iterator
-from datetime import date
-from datetime import timedelta
 
 import typer
 from rich.console import Console
@@ -26,13 +25,13 @@ from typos.storage import iter_events
 from typos.storage import list_session_files
 
 
-def per_session_events(since: date | None = None, until: date | None = None) -> Iterator[list[dict]]:
+def per_session_events(since: dt.date | None = None, until: dt.date | None = None) -> Iterator[list[dict]]:
     """Yield event-lists, one per session file, within the given window."""
     for path in list_session_files(since=since, until=until):
         yield list(iter_events(path))
 
 
-def describe_window(since: str, cutoff: date | None, until_cutoff: date | None) -> str:
+def describe_window(since: str, cutoff: dt.date | None, until_cutoff: dt.date | None) -> str:
     """Name the analysed window, spelling out both edges once one is closed."""
     if until_cutoff is None:
         return f'last {since}'
@@ -86,10 +85,10 @@ def report_cmd(
     stats = bigram_stats(rec.char_timings)
     scores = damage_scores(stats)
 
-    anchor = until_cutoff or date.today()
-    cutoff_7d = anchor - timedelta(days=7)
-    cutoff_14d = anchor - timedelta(days=14)
-    cutoff_30d = anchor - timedelta(days=30)
+    anchor = until_cutoff or dt.date.today()
+    cutoff_7d = anchor - dt.timedelta(days=7)
+    cutoff_14d = anchor - dt.timedelta(days=14)
+    cutoff_30d = anchor - dt.timedelta(days=30)
     wpm_7d = compute_wpm(per_session_events(since=cutoff_7d, until=until_cutoff))
     wpm_30d = compute_wpm(per_session_events(since=cutoff_30d, until=until_cutoff))
     var_current = compute_iki_variance(per_session_events(since=cutoff_7d, until=until_cutoff))

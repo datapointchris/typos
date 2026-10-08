@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+import datetime as dt
 from pathlib import Path
 
 from typos.analyzer import DamageScore
@@ -338,14 +338,14 @@ def test_mistyped_words_typed_counts_word_in_final_text() -> None:
 
 
 def test_parse_since_relative() -> None:
-    today = date(2026, 4, 26)
-    assert parse_since('7d', today=today) == date(2026, 4, 19)
-    assert parse_since('30d', today=today) == date(2026, 3, 27)
+    today = dt.date(2026, 4, 26)
+    assert parse_since('7d', today=today) == dt.date(2026, 4, 19)
+    assert parse_since('30d', today=today) == dt.date(2026, 3, 27)
 
 
 def test_parse_since_absolute() -> None:
-    today = date(2026, 4, 26)
-    assert parse_since('2026-04-20', today=today) == date(2026, 4, 20)
+    today = dt.date(2026, 4, 26)
+    assert parse_since('2026-04-20', today=today) == dt.date(2026, 4, 20)
 
 
 def test_parse_since_none() -> None:
@@ -353,23 +353,23 @@ def test_parse_since_none() -> None:
 
 
 def test_resolve_window_without_until_has_no_upper_bound() -> None:
-    today = date(2026, 4, 26)
-    assert resolve_window('7d', None, today=today) == (date(2026, 4, 19), None)
+    today = dt.date(2026, 4, 26)
+    assert resolve_window('7d', None, today=today) == (dt.date(2026, 4, 19), None)
 
 
 def test_resolve_window_counts_a_relative_since_back_from_until() -> None:
-    today = date(2026, 4, 26)
-    assert resolve_window('7d', '2026-07-01', today=today) == (date(2026, 6, 24), date(2026, 7, 1))
+    today = dt.date(2026, 4, 26)
+    assert resolve_window('7d', '2026-07-01', today=today) == (dt.date(2026, 6, 24), dt.date(2026, 7, 1))
 
 
 def test_resolve_window_leaves_an_absolute_since_where_it_was_written() -> None:
-    today = date(2026, 4, 26)
-    assert resolve_window('2026-06-01', '2026-07-01', today=today) == (date(2026, 6, 1), date(2026, 7, 1))
+    today = dt.date(2026, 4, 26)
+    assert resolve_window('2026-06-01', '2026-07-01', today=today) == (dt.date(2026, 6, 1), dt.date(2026, 7, 1))
 
 
 def test_resolve_window_reads_a_relative_until_against_the_current_date() -> None:
-    today = date(2026, 4, 26)
-    assert resolve_window('7d', '7d', today=today) == (date(2026, 4, 12), date(2026, 4, 19))
+    today = dt.date(2026, 4, 26)
+    assert resolve_window('7d', '7d', today=today) == (dt.date(2026, 4, 12), dt.date(2026, 4, 19))
 
 
 def test_fixture_storage_skips_malformed_bytes() -> None:

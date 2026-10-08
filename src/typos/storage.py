@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import datetime as dt
 import json
 import re
 from collections.abc import Iterator
-from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -12,14 +12,14 @@ from typos.config import sessions_dir
 DATE_FROM_FILENAME = re.compile(r'(\d{4}-\d{2}-\d{2})\.jsonl$')
 
 
-def parse_session_date(path: Path) -> date | None:
+def parse_session_date(path: Path) -> dt.date | None:
     m = DATE_FROM_FILENAME.search(path.name)
     if m is None:
         return None
-    return date.fromisoformat(m.group(1))
+    return dt.date.fromisoformat(m.group(1))
 
 
-def list_session_files(since: date | None = None, until: date | None = None) -> list[Path]:
+def list_session_files(since: dt.date | None = None, until: dt.date | None = None) -> list[Path]:
     sd = sessions_dir()
     if not sd.exists():
         return []
@@ -55,12 +55,12 @@ def iter_events(path: Path) -> Iterator[dict[str, Any]]:
                 continue
 
 
-def iter_all_events(since: date | None = None, until: date | None = None) -> Iterator[dict[str, Any]]:
+def iter_all_events(since: dt.date | None = None, until: dt.date | None = None) -> Iterator[dict[str, Any]]:
     for path in list_session_files(since=since, until=until):
         yield from iter_events(path)
 
 
-def days_active(since: date | None = None, until: date | None = None) -> int:
+def days_active(since: dt.date | None = None, until: dt.date | None = None) -> int:
     return len({d for f in list_session_files(since=since, until=until) if (d := parse_session_date(f)) is not None})
 
 

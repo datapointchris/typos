@@ -1,32 +1,31 @@
 from __future__ import annotations
 
+import datetime as dt
 import re
 import statistics
 from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 from dataclasses import field
-from datetime import date
-from datetime import timedelta
 
 SINCE_RELATIVE = re.compile(r'^(\d+)d$')
 
 
-def parse_since(value: str | None, today: date | None = None) -> date | None:
+def parse_since(value: str | None, today: dt.date | None = None) -> dt.date | None:
     if value is None:
         return None
-    today = today or date.today()
+    today = today or dt.date.today()
     m = SINCE_RELATIVE.match(value)
     if m:
-        return today - timedelta(days=int(m.group(1)))
-    return date.fromisoformat(value)
+        return today - dt.timedelta(days=int(m.group(1)))
+    return dt.date.fromisoformat(value)
 
 
 def resolve_window(
     since: str | None,
     until: str | None,
-    today: date | None = None,
-) -> tuple[date | None, date | None]:
+    today: dt.date | None = None,
+) -> tuple[dt.date | None, dt.date | None]:
     """Resolve a --since/--until pair into the half-open date window [since, until).
 
     `until` is the report's frame of reference, so a relative `since` counts back
@@ -34,7 +33,7 @@ def resolve_window(
     asks about 2026-06-24 through 2026-06-30. An absolute `since` is unaffected,
     and with no `until` the window has no upper bound.
     """
-    today = today or date.today()
+    today = today or dt.date.today()
     until_date = parse_since(until, today=today)
     return parse_since(since, today=until_date or today), until_date
 
