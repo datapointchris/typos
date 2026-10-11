@@ -11,6 +11,5 @@ build/
 .envrc
 .direnv/
 .claude/
-.planning
 .coverage
 coverage.xml
