@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 
-def _state_home() -> Path:
+def state_home() -> Path:
     """XDG state home, resolved then fallen back — never hardcoded.
 
     Captured sessions are state rather than data: they survive across runs, no
@@ -25,7 +25,7 @@ def data_dir() -> Path:
     override = os.environ.get('TYPOS_DATA_DIR')
     if override:
         return Path(override).expanduser()
-    return _state_home() / 'typos'
+    return state_home() / 'typos'
 
 
 def sessions_dir() -> Path:
