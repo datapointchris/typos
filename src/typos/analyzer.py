@@ -198,7 +198,9 @@ def bigram_stats(char_timings: list[tuple[str, int]]) -> dict[str, BigramStats]:
 
 
 def damage_scores(stats: dict[str, BigramStats]) -> list[DamageScore]:
-    all_ikis = [iki for bg in stats.values() for iki in bg.ikis_ns]
+    all_ikis = []
+    for bg in stats.values():
+        all_ikis.extend(bg.ikis_ns)
     if not all_ikis:
         return []
     baseline = statistics.median(all_ikis)
