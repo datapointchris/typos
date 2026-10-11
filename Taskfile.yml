@@ -33,8 +33,9 @@ tasks:
       - task: lua:lint
 
   python:lint:
-    desc: Lint the Python analyzer
+    desc: Lint the Python analyzer, formatting included
     cmds:
+      - uv run ruff format --check src tests
       - uv run ruff check src tests
 
   lua:lint:
