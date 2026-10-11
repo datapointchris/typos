@@ -26,17 +26,18 @@ tasks:
       - ln -sfn "$(readlink {{.PRIMARY}}/.planning)" .planning
 
   lint:
-    desc: Lint both languages
+    desc: Lint and type check both languages
     cmds:
-      - task: lint:python
-      - task: lint:lua
+      - task: python:lint
+      - task: typecheck
+      - task: lua:lint
 
-  lint:python:
+  python:lint:
     desc: Lint the Python analyzer
     cmds:
       - uv run ruff check src tests
 
-  lint:lua:
+  lua:lint:
     desc: Check the Neovim plugin's formatting
     cmds:
       - stylua --check lua
@@ -44,16 +45,16 @@ tasks:
   format:
     desc: Format both languages
     cmds:
-      - task: format:python
-      - task: format:lua
+      - task: python:format
+      - task: lua:format
 
-  format:python:
+  python:format:
     desc: Format the Python analyzer
     cmds:
       - uv run ruff format src tests
       - uv run ruff check --fix src tests
 
-  format:lua:
+  lua:format:
     desc: Format the Neovim plugin
     cmds:
       - stylua lua
@@ -66,15 +67,15 @@ tasks:
   test:
     desc: Test both languages
     cmds:
-      - task: test:python
-      - task: test:lua
+      - task: python:test
+      - task: lua:test
 
-  test:python:
+  python:test:
     desc: Run the Python test suite
     cmds:
       - uv run pytest
 
-  test:lua:
+  lua:test:
     desc: Run the Neovim capture tests
     cmds:
       - nvim --headless -u NONE -l tests/capture_spec.lua

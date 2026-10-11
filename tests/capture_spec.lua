@@ -1,4 +1,4 @@
--- Capture-layer tests. Run with `task test:lua`, or directly:
+-- Capture-layer tests. Run with `task lua:test`, or directly:
 --   nvim --headless -u NONE -l tests/capture_spec.lua
 --
 -- Plain nvim rather than busted or plenary: the whole surface is vim.on_key, a
