@@ -49,7 +49,24 @@ def format_iki_variance(current_ns2: float, prior_ns2: float) -> str:
     return f'{current:.0f}ms²  ({direction} from {prior:.0f}ms² last week)'
 
 
-typos_app = typer.Typer(no_args_is_help=True, help='Passive typing analysis from your real prose.')
+ROOT_HELP = """Passive typing analysis from your real prose.
+
+Start with `typos status` to confirm capture is writing sessions, then read `typos report`.
+
+`report` and `problems` both list mistyped words. `report` is the weekly read: totals,
+the bigrams costing you the most time, and the top words beneath them. Reach for
+`problems --raw` when a word there needs the exact wrong-for-right keys behind it.
+
+Examples:
+
+  typos report
+
+  typos report --since 30d
+
+  typos problems --raw
+"""
+
+typos_app = typer.Typer(no_args_is_help=True, help=ROOT_HELP)
 console = Console()
 
 
