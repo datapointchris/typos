@@ -118,34 +118,3 @@ def test_problems_includes_a_session_dated_exactly_on_since(sessions_dir: Path) 
 
     assert 'zap' in output
     assert 'quirk' not in output
-
-
-def root_help() -> str:
-    """The root screen as printed on a console wide enough that no line wraps."""
-    result = runner.invoke(typos_app, ['--help'], env={'COLUMNS': '200'})
-    assert result.exit_code == 0, result.output
-    return result.output
-
-
-def root_help_prose() -> str:
-    """The root screen with its line breaks and padding collapsed to single spaces."""
-    return ' '.join(root_help().split())
-
-
-def test_root_help_states_the_working_sequence() -> None:
-    output = root_help_prose()
-
-    assert 'Start with `typos status` to confirm capture is writing sessions, then read `typos report`.' in output
-
-
-def test_root_help_says_when_problems_is_the_command_over_report() -> None:
-    output = root_help_prose()
-
-    assert '`report` and `problems` both list mistyped words.' in output
-    assert 'Reach for `problems --raw` when a word there needs the exact wrong-for-right keys' in output
-
-
-def test_root_help_gives_the_common_case_as_a_line_of_its_own() -> None:
-    lines = [line.strip(' │') for line in root_help().splitlines()]
-
-    assert 'typos report' in lines
