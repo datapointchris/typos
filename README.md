@@ -32,8 +32,8 @@ The plugin needs Neovim 0.10 or later, the first release with `vim.uv`. With laz
 }
 ```
 
-`watch_dirs` is the auto-on list. Capture runs in any buffer whose path starts with one of them, and
-stays off everywhere else. A single directory may be a bare string. `~` is expanded, and a trailing
+`watch_dirs` is the auto-on list. Capture runs in any buffer under one of them, and stays off
+everywhere else, a sibling such as `~/writing-old` included. A single directory may be a bare string. `~` is expanded, and a trailing
 slash is dropped.
 
 `ft` decides only when the plugin loads. Capture follows the buffer's path and ignores its filetype,

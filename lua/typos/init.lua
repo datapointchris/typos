@@ -46,10 +46,10 @@ local state = {
 -- current buffer, so reading it directly cannot fall out of step with splits,
 -- tabs, terminals, or a file moved mid-session.
 
--- A bare string is accepted for the single-directory case. Normalised here
--- rather than at the call site so a caller may pass "~/notes" without thinking
--- about expansion, and a trailing slash is stripped because the match below is a
--- prefix test.
+-- A bare string is accepted for the single-directory case. Normalized here
+-- rather than at the call site so a caller may pass "~/writing" without thinking
+-- about expansion, and a trailing slash is stripped so the match below can add
+-- exactly one separator of its own.
 local function normalize_dirs(dirs)
   if type(dirs) == 'string' then
     dirs = { dirs }
@@ -69,12 +69,13 @@ local function session_file_path()
   return state.opts.data_dir .. '/sessions/' .. os.date('%Y-%m-%d') .. '.jsonl'
 end
 
+-- Matched on a directory boundary, so `~/writing` never claims `~/writing-old`.
 local function in_watch_dirs(path)
   if not path or path == '' then
     return false
   end
   for _, dir in ipairs(state.opts.watch_dirs) do
-    if vim.startswith(path, dir) then
+    if path == dir or vim.startswith(path, dir .. '/') then
       return true
     end
   end

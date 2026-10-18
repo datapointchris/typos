@@ -58,6 +58,10 @@ check('a buffer under watch_dirs captures with no command run', in_prose > 0)
 type_into(code .. '/b.lua', 'iworld<Esc>')
 check('a buffer outside watch_dirs captures nothing', events() == in_prose)
 
+vim.fn.mkdir(prose .. '-old', 'p')
+type_into(prose .. '-old/b.md', 'iworld<Esc>')
+check('a sibling directory sharing the prefix captures nothing', events() == in_prose)
+
 -- The recorded path is what the analyzer groups by, so a wrong one is silent.
 local first = vim.json.decode(vim.fn.readfile(session)[1])
 check('the event records the buffer it came from', first.bufpath == prose .. '/a.md')
