@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import re
 import statistics
 from collections import Counter
 from collections.abc import Iterable
@@ -9,42 +8,10 @@ from dataclasses import dataclass
 from dataclasses import field
 from itertools import pairwise
 
-SINCE_RELATIVE = re.compile(r'^(\d+)d$')
-
 
 def window_end(today: dt.date | None = None) -> dt.date:
     """The exclusive edge of a window that runs through today, which is tomorrow."""
     return (today or dt.date.today()) + dt.timedelta(days=1)
-
-
-def parse_since(value: str | None, anchor: dt.date) -> dt.date | None:
-    """Read `<N>d` as N days before `anchor`, and YYYY-MM-DD as the date it names."""
-    if value is None:
-        return None
-    m = SINCE_RELATIVE.match(value)
-    if m:
-        return anchor - dt.timedelta(days=int(m.group(1)))
-    return dt.date.fromisoformat(value)
-
-
-def resolve_window(
-    since: str | None,
-    until: str | None,
-    today: dt.date | None = None,
-) -> tuple[dt.date | None, dt.date | None]:
-    """Resolve a --since/--until pair into the half-open date window [since, until).
-
-    A window holds exactly as many days as it names. With no `until` it runs
-    through today, so its exclusive edge is tomorrow and a relative date counts
-    back from there: `--since 7d` is the last seven days, today included, and
-    `--until 7d` leaves out exactly those seven. A given `until` is the report's
-    frame of reference instead: `--since 7d --until 2026-07-01` asks about
-    2026-06-24 through 2026-06-30. An absolute `since` is unaffected. With no
-    `until` the returned upper bound is None, because nothing is logged after today.
-    """
-    end = window_end(today)
-    until_date = parse_since(until, anchor=end)
-    return parse_since(since, anchor=until_date or end), until_date
 
 
 SPECIAL_TO_CHAR = {

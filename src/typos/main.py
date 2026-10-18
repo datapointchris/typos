@@ -16,26 +16,22 @@ from typos.analyzer import damage_deltas
 from typos.analyzer import damage_scores
 from typos.analyzer import display_bigram
 from typos.analyzer import reconstruct_sessions
-from typos.analyzer import resolve_window
 from typos.analyzer import variance_ns_to_ms
 from typos.analyzer import window_end
 from typos.config import data_dir
 from typos.storage import days_active
 from typos.storage import iter_events
 from typos.storage import list_session_files
+from typos.window import Since
+from typos.window import Until
+from typos.window import described
+from typos.window import resolved
 
 
 def per_session_events(since: dt.date | None = None, until: dt.date | None = None) -> Iterator[list[dict]]:
     """Yield event-lists, one per session file, within the given window."""
     for path in list_session_files(since=since, until=until):
         yield list(iter_events(path))
-
-
-def describe_window(since: str, cutoff: dt.date | None, until_cutoff: dt.date | None) -> str:
-    """Name the analysed window, spelling out both edges once one is closed."""
-    if until_cutoff is None:
-        return f'last {since}'
-    return f'{cutoff} to {until_cutoff} (exclusive)'
 
 
 def format_iki_variance(current_ns2: float, prior_ns2: float) -> str:
@@ -101,18 +97,17 @@ def status_cmd() -> None:
 @typos_app.command('report')
 def report_cmd(
     top: int = typer.Option(10, '--top', help='Number of bigrams to show.'),
-    since: str = typer.Option('7d', '--since', help='Start of the window, inclusive: <N>d (relative) or YYYY-MM-DD.'),
-    until: str | None = typer.Option(
-        None,
-        '--until',
-        help='End of the window, exclusive: <N>d (relative) or YYYY-MM-DD. Every window the report derives ends here.',
-    ),
+    since: Since = None,
+    until: Until = None,
 ) -> None:
-    """Show typing report — totals and top damaging bigrams."""
-    cutoff, until_cutoff = resolve_window(since, until)
+    """Show typing report — totals and top damaging bigrams.
+
+    The 7-day and 30-day WPM, the variance and the weekly deltas end where --until does.
+    """
+    cutoff, until_cutoff = resolved(since, until, dt.datetime.now().astimezone())
     sessions = list_session_files(since=cutoff, until=until_cutoff)
     if not sessions:
-        console.print(f'[yellow]no sessions in window ({describe_window(since, cutoff, until_cutoff)})[/yellow]')
+        console.print(f'[yellow]no sessions in window ({described(cutoff, until_cutoff)})[/yellow]')
         return
 
     window = reconstruct_sessions(per_session_events(since=cutoff, until=until_cutoff))
@@ -128,7 +123,7 @@ def report_cmd(
     var_current = compute_iki_variance(per_session_events(since=cutoff_7d, until=until_cutoff))
     var_prior = compute_iki_variance(per_session_events(since=cutoff_14d, until=cutoff_7d))
 
-    console.print(f'[bold]typos report — {describe_window(since, cutoff, until_cutoff)}[/bold]')
+    console.print(f'[bold]typos report — {described(cutoff, until_cutoff)}[/bold]')
     console.print(f'  sessions:     {len(sessions)}')
     console.print(f'  days active:  {days_active(since=cutoff, until=until_cutoff)}')
     console.print(f'  total chars:  {window.chars:,}')
@@ -195,16 +190,12 @@ def report_cmd(
 @typos_app.command('problems')
 def problems_cmd(
     top: int = typer.Option(10, '--top', help='Number of items to show.'),
-    since: str = typer.Option('7d', '--since', help='Start of the window, inclusive: <N>d (relative) or YYYY-MM-DD.'),
-    until: str | None = typer.Option(
-        None,
-        '--until',
-        help='End of the window, exclusive: <N>d (relative) or YYYY-MM-DD. A relative --since counts back from here.',
-    ),
+    since: Since = None,
+    until: Until = None,
     raw: bool = typer.Option(False, '--raw', help='Show raw (wrong, right) pairs instead of word view.'),
 ) -> None:
     """Show your most-mistyped words (or raw correction pairs with --raw)."""
-    cutoff, until_cutoff = resolve_window(since, until)
+    cutoff, until_cutoff = resolved(since, until, dt.datetime.now().astimezone())
     window = reconstruct_sessions(per_session_events(since=cutoff, until=until_cutoff))
     corrections = window.corrections
     if not corrections:

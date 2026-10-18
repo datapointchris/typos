@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime as dt
 from pathlib import Path
 
 from typos.analyzer import DamageScore
@@ -12,7 +11,6 @@ from typos.analyzer import damage_scores
 from typos.analyzer import mistyped_words
 from typos.analyzer import reconstruct
 from typos.analyzer import reconstruct_sessions
-from typos.analyzer import resolve_window
 from typos.analyzer import session_wpm_components
 from typos.analyzer import trailing_word
 from typos.analyzer import variance_ns_to_ms
@@ -349,23 +347,3 @@ def test_mistyped_words_typed_counts_word_in_final_text() -> None:
     assert the.typed == 2
     assert the.corrections == 1
     assert the.rate == 0.5
-
-
-def test_resolve_window_without_until_runs_through_today_with_no_upper_bound() -> None:
-    today = dt.date(2026, 4, 26)
-    assert resolve_window('7d', None, today=today) == (dt.date(2026, 4, 20), None)
-
-
-def test_resolve_window_counts_a_relative_since_back_from_until() -> None:
-    today = dt.date(2026, 4, 26)
-    assert resolve_window('7d', '2026-07-01', today=today) == (dt.date(2026, 6, 24), dt.date(2026, 7, 1))
-
-
-def test_resolve_window_leaves_an_absolute_since_where_it_was_written() -> None:
-    today = dt.date(2026, 4, 26)
-    assert resolve_window('2026-06-01', '2026-07-01', today=today) == (dt.date(2026, 6, 1), dt.date(2026, 7, 1))
-
-
-def test_resolve_window_reads_a_relative_until_against_the_end_of_today() -> None:
-    today = dt.date(2026, 4, 26)
-    assert resolve_window('7d', '7d', today=today) == (dt.date(2026, 4, 13), dt.date(2026, 4, 20))

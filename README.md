@@ -115,11 +115,16 @@ and five characters count as a word. IKI variance is the spread of the intervals
 the last seven days, set beside the seven before. A lower number is a steadier rhythm. The report
 closes on the bigrams whose damage moved more than 20% week over week.
 
-`--since` is inclusive and `--until` is exclusive. `--until` is the frame of reference: a relative
-`--since` counts back from it, and so does every window `report` derives for WPM, variance and the
-weekly deltas. `--since 7d --until 2026-07-01` reads 24 June through 30 June. With no `--until`,
-every window runs through today and holds exactly the days it names, so `--since 7d` is the last
-seven days with today included.
+`--since` and `--until` each take a span back from now (`30m`, `12h`, `7d`, `2w`, where `m` is
+minutes), a day (`2026-07-01`), or an RFC 3339 instant with its offset. Months and years are not
+units, because they have no fixed length. A day is read on this machine's clock, and on `--until`
+it includes all of that day. `--since` defaults to `7d`, and `--until` alone reads from the first
+session.
+
+A day file holds no clock time, so a read takes every day file its window touches. `--since 12h`
+at 09:00 reads yesterday's file and today's. `report` ends its 7-day and 30-day WPM, its variance
+and its weekly deltas where `--until` does, so `--since 2026-06-01 --until 2026-06-30` reads June
+as if it were 30 June.
 
 ## The log — append-only JSONL, and the only thing the two halves share
 

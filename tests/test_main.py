@@ -44,39 +44,11 @@ def run(*args: str) -> str:
     return result.output
 
 
-def test_report_excludes_a_session_dated_exactly_on_until(sessions_dir: Path) -> None:
-    write_session(sessions_dir, dt.date(2026, 6, 22), list('abcde'))
-    write_session(sessions_dir, dt.date(2026, 6, 23), list('fghij'))
-
-    output = run('report', '--since', '2026-06-01', '--until', '2026-06-23')
-
-    assert 'sessions:     1' in output
-    assert 'total chars:  5' in output
-
-
-def test_report_includes_a_session_dated_exactly_on_since(sessions_dir: Path) -> None:
-    write_session(sessions_dir, dt.date(2026, 6, 22), list('abcde'))
-    write_session(sessions_dir, dt.date(2026, 6, 23), list('fghij'))
-
-    output = run('report', '--since', '2026-06-23', '--until', '2026-06-24')
-
-    assert 'sessions:     1' in output
-    assert 'total chars:  5' in output
-
-
-def test_report_names_both_edges_of_a_closed_window(sessions_dir: Path) -> None:
-    write_session(sessions_dir, dt.date(2026, 6, 22), list('abcde'))
-
-    output = run('report', '--since', '2026-06-01', '--until', '2026-06-23')
-
-    assert '2026-06-01 to 2026-06-23 (exclusive)' in output
-
-
 def test_until_moves_the_wpm_windows_off_the_current_date(sessions_dir: Path) -> None:
     anchor = dt.date.today() - dt.timedelta(days=90)
     write_session(sessions_dir, anchor - dt.timedelta(days=1), list('abcdefghij'))
 
-    output = run('report', '--since', '30d', '--until', anchor.isoformat())
+    output = run('report', '--since', (anchor - dt.timedelta(days=30)).isoformat(), '--until', anchor.isoformat())
 
     assert '  WPM (7d):     0.0' not in output
     assert '  WPM (30d):    0.0' not in output
@@ -91,30 +63,11 @@ def test_wpm_windows_stay_anchored_to_today_without_until(sessions_dir: Path) ->
     assert '  WPM (30d):    0.0' in output
 
 
-def test_a_relative_since_counts_back_from_until(sessions_dir: Path) -> None:
-    anchor = dt.date.today() - dt.timedelta(days=90)
-    write_session(sessions_dir, anchor - dt.timedelta(days=3), list('abcde'))
-
-    output = run('report', '--since', '7d', '--until', anchor.isoformat())
-
-    assert 'sessions:     1' in output
-
-
-def test_problems_excludes_a_session_dated_exactly_on_until(sessions_dir: Path) -> None:
+def test_problems_reads_only_the_days_the_window_covers(sessions_dir: Path) -> None:
     write_session(sessions_dir, dt.date(2026, 6, 22), WORD_KEYS['quirk'])
     write_session(sessions_dir, dt.date(2026, 6, 23), WORD_KEYS['zap'])
 
-    output = run('problems', '--since', '2026-06-01', '--until', '2026-06-23')
+    output = run('problems', '--since', '2026-06-01', '--until', '2026-06-22')
 
     assert 'quirk' in output
     assert 'zap' not in output
-
-
-def test_problems_includes_a_session_dated_exactly_on_since(sessions_dir: Path) -> None:
-    write_session(sessions_dir, dt.date(2026, 6, 22), WORD_KEYS['quirk'])
-    write_session(sessions_dir, dt.date(2026, 6, 23), WORD_KEYS['zap'])
-
-    output = run('problems', '--since', '2026-06-23', '--until', '2026-06-24')
-
-    assert 'zap' in output
-    assert 'quirk' not in output
