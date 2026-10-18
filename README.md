@@ -119,9 +119,6 @@ closes on the bigrams whose damage moved more than 20% week over week.
 weekly deltas. `--since 7d --until 2026-07-01` reads 24 June through 30 June. With no `--until`,
 all of them count back from today.
 
-`typos generate` is a stub that prints `not yet implemented`. It is reserved for practice text drawn
-from your own weak patterns, never from a canned word list.
-
 ## The log — append-only JSONL, and the only thing the two halves share
 
 There is no daemon. The plugin appends one JSON object per keystroke to

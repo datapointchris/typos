@@ -216,9 +216,3 @@ def problems_cmd(
     for w in words[:top]:
         table.add_row(w.word, str(w.typed), str(w.corrections), f'{w.rate * 100:.0f}%')
     console.print(table)
-
-
-@typos_app.command('generate')
-def generate_cmd() -> None:
-    """Generate practice text from current weak patterns."""
-    console.print('[yellow]not yet implemented[/yellow]')
