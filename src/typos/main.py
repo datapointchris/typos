@@ -8,6 +8,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from typos import installed_commit
+from typos import tool_version
 from typos.analyzer import compute_iki_variance
 from typos.analyzer import compute_wpm
 from typos.analyzer import damage_deltas
@@ -65,6 +67,24 @@ Examples:
 
 typos_app = typer.Typer(no_args_is_help=True, help=ROOT_HELP)
 console = Console()
+
+
+def version_callback(asked: bool) -> None:
+    """Print `typos <version>`, with the commit after it for a git install, and exit."""
+    if not asked:
+        return
+    commit = installed_commit()
+    typer.echo(f'typos {tool_version()}' + (f' @ {commit[:8]}' if commit else ''))
+    raise typer.Exit()
+
+
+@typos_app.callback()
+def root(
+    version: bool | None = typer.Option(
+        None, '--version', callback=version_callback, is_eager=True, help='Show the installed version and exit.'
+    ),
+) -> None:
+    """Host the options that come before any command."""
 
 
 @typos_app.command('status')
