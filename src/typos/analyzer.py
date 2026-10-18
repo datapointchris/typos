@@ -12,13 +12,18 @@ from itertools import pairwise
 SINCE_RELATIVE = re.compile(r'^(\d+)d$')
 
 
-def parse_since(value: str | None, today: dt.date | None = None) -> dt.date | None:
+def window_end(today: dt.date | None = None) -> dt.date:
+    """The exclusive edge of a window that runs through today, which is tomorrow."""
+    return (today or dt.date.today()) + dt.timedelta(days=1)
+
+
+def parse_since(value: str | None, anchor: dt.date) -> dt.date | None:
+    """Read `<N>d` as N days before `anchor`, and YYYY-MM-DD as the date it names."""
     if value is None:
         return None
-    today = today or dt.date.today()
     m = SINCE_RELATIVE.match(value)
     if m:
-        return today - dt.timedelta(days=int(m.group(1)))
+        return anchor - dt.timedelta(days=int(m.group(1)))
     return dt.date.fromisoformat(value)
 
 
@@ -29,14 +34,17 @@ def resolve_window(
 ) -> tuple[dt.date | None, dt.date | None]:
     """Resolve a --since/--until pair into the half-open date window [since, until).
 
-    `until` is the report's frame of reference, so a relative `since` counts back
-    from it rather than from the current date: `--since 7d --until 2026-07-01`
-    asks about 2026-06-24 through 2026-06-30. An absolute `since` is unaffected,
-    and with no `until` the window has no upper bound.
+    A window holds exactly as many days as it names. With no `until` it runs
+    through today, so its exclusive edge is tomorrow and a relative date counts
+    back from there: `--since 7d` is the last seven days, today included, and
+    `--until 7d` leaves out exactly those seven. A given `until` is the report's
+    frame of reference instead: `--since 7d --until 2026-07-01` asks about
+    2026-06-24 through 2026-06-30. An absolute `since` is unaffected, and with no
+    `until` the window has no upper bound.
     """
-    today = today or dt.date.today()
-    until_date = parse_since(until, today=today)
-    return parse_since(since, today=until_date or today), until_date
+    end = window_end(today)
+    until_date = parse_since(until, anchor=end)
+    return parse_since(since, anchor=until_date or end), until_date
 
 
 SPECIAL_TO_CHAR = {

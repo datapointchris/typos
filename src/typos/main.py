@@ -18,6 +18,7 @@ from typos.analyzer import display_bigram
 from typos.analyzer import reconstruct_sessions
 from typos.analyzer import resolve_window
 from typos.analyzer import variance_ns_to_ms
+from typos.analyzer import window_end
 from typos.config import data_dir
 from typos.storage import days_active
 from typos.storage import iter_events
@@ -118,7 +119,7 @@ def report_cmd(
     stats = window.bigram_stats()
     scores = damage_scores(stats)
 
-    anchor = until_cutoff or dt.date.today()
+    anchor = until_cutoff or window_end()
     cutoff_7d = anchor - dt.timedelta(days=7)
     cutoff_14d = anchor - dt.timedelta(days=14)
     cutoff_30d = anchor - dt.timedelta(days=30)

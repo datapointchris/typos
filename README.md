@@ -117,7 +117,8 @@ closes on the bigrams whose damage moved more than 20% week over week.
 `--since` is inclusive and `--until` is exclusive. `--until` is the frame of reference: a relative
 `--since` counts back from it, and so does every window `report` derives for WPM, variance and the
 weekly deltas. `--since 7d --until 2026-07-01` reads 24 June through 30 June. With no `--until`,
-all of them count back from today.
+every window runs through today and holds exactly the days it names, so `--since 7d` is the last
+seven days with today included.
 
 ## The log — append-only JSONL, and the only thing the two halves share
 
