@@ -150,10 +150,15 @@ def report_cmd(
             wtable.add_row(w.word, str(w.typed), str(w.corrections), f'{w.rate * 100:.0f}%')
         console.print(wtable)
 
-    prior = reconstruct_sessions(per_session_events(since=cutoff_14d, until=cutoff_7d))
-    if prior.sessions:
-        prior_scores = damage_scores(prior.bigram_stats())
-        improved, worsened = damage_deltas(prior_scores, scores)
+    # Damage grows with how often a bigram is typed, so the deltas compare two
+    # weeks of equal length whatever --since says. Scoring the whole window
+    # against one week would report every bigram as worse on a 30-day report.
+    prior_week = reconstruct_sessions(per_session_events(since=cutoff_14d, until=cutoff_7d))
+    if prior_week.sessions:
+        current_week = reconstruct_sessions(per_session_events(since=cutoff_7d, until=until_cutoff))
+        prior_scores = damage_scores(prior_week.bigram_stats())
+        current_scores = damage_scores(current_week.bigram_stats())
+        improved, worsened = damage_deltas(prior_scores, current_scores)
         if improved:
             console.print()
             console.print('[bold]recently improved (damage down >20% week-over-week)[/bold]')
