@@ -104,13 +104,63 @@ local function write_event(event)
   state.event_count = state.event_count + 1
 end
 
+-- The length of the well-formed UTF-8 sequence starting at byte i, or nil when
+-- there is none. The ranges are Unicode's table of well-formed byte sequences,
+-- so an overlong form, a surrogate and a stray continuation byte are all refused.
+local function utf8_length(s, i)
+  local lead = s:byte(i)
+  if lead < 0x80 then
+    return 1
+  end
+  local length, low, high
+  if lead >= 0xc2 and lead <= 0xdf then
+    length, low, high = 2, 0x80, 0xbf
+  elseif lead == 0xe0 then
+    length, low, high = 3, 0xa0, 0xbf
+  elseif lead == 0xed then
+    length, low, high = 3, 0x80, 0x9f
+  elseif lead >= 0xe1 and lead <= 0xef then
+    length, low, high = 3, 0x80, 0xbf
+  elseif lead == 0xf0 then
+    length, low, high = 4, 0x90, 0xbf
+  elseif lead >= 0xf1 and lead <= 0xf3 then
+    length, low, high = 4, 0x80, 0xbf
+  elseif lead == 0xf4 then
+    length, low, high = 4, 0x80, 0x8f
+  else
+    return nil
+  end
+  local second = s:byte(i + 1)
+  if not second or second < low or second > high then
+    return nil
+  end
+  for j = i + 2, i + length - 1 do
+    local continuation = s:byte(j)
+    if not continuation or continuation < 0x80 or continuation > 0xbf then
+      return nil
+    end
+  end
+  return length
+end
+
 -- vim.fn.keytrans handles most special keys but sometimes leaks internal
--- K_SPECIAL escape bytes (0x80-0xfd) for terminal-only key codes. Encode any
--- non-printable byte as <bin:HEX> so the JSONL stays valid UTF-8.
+-- K_SPECIAL escape bytes for terminal-only key codes. Those bytes are not valid
+-- UTF-8, so each one is written as <bin:HEX> and the JSONL stays valid UTF-8. A
+-- well-formed character such as é is written as itself, so it counts as typed.
 local function sanitize_key(key)
-  return (key:gsub('[^\32-\126]', function(c)
-    return string.format('<bin:%02x>', string.byte(c))
-  end))
+  local parts = {}
+  local i = 1
+  while i <= #key do
+    local length = utf8_length(key, i)
+    if length then
+      table.insert(parts, key:sub(i, i + length - 1))
+      i = i + length
+    else
+      table.insert(parts, string.format('<bin:%02x>', key:byte(i)))
+      i = i + 1
+    end
+  end
+  return table.concat(parts)
 end
 
 local function on_key(key, _typed)

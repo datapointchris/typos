@@ -136,8 +136,9 @@ day Neovim loaded the plugin, so a session that runs past midnight stays in the 
 - `ts_ns` is `vim.uv.hrtime()`, nanoseconds on a clock that restarts at boot. It measures the
   intervals between keys, never the time of day.
 - `key` is in Neovim's `keytrans` notation: `a`, `<Space>`, `<BS>`, `<CR>`, `<C-a>`. A modifier is
-  part of the key, never an event of its own. A byte outside printable ASCII is written as
-  `<bin:HEX>`, so the line stays valid UTF-8.
+  part of the key, never an event of its own. A character outside ASCII, such as `é`, is written
+  as itself and counts as typed. A byte that is not valid UTF-8, such as an internal key code
+  leaking past `keytrans`, is written as `<bin:HEX>`, so the line stays valid UTF-8.
 - `bufpath` is the buffer's absolute path.
 - `mode` is Neovim's mode string. Only `i` is typing. The analyzer reads insert-mode events, and any
   other event ends the correction in progress.

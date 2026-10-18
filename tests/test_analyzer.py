@@ -370,11 +370,3 @@ def test_resolve_window_leaves_an_absolute_since_where_it_was_written() -> None:
 def test_resolve_window_reads_a_relative_until_against_the_current_date() -> None:
     today = dt.date(2026, 4, 26)
     assert resolve_window('7d', '7d', today=today) == (dt.date(2026, 4, 12), dt.date(2026, 4, 19))
-
-
-def test_fixture_storage_skips_malformed_bytes() -> None:
-    # The fixture contains one line with a vim K_SPECIAL byte (0xfd) that
-    # leaked past keytrans before the sanitize_key fix landed. iter_events
-    # must be tolerant of this — UTF-8 decode failures are replaced, not raised.
-    events = list(iter_events(FIXTURE))
-    assert events

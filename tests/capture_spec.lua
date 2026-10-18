@@ -67,6 +67,13 @@ local first = vim.json.decode(vim.fn.readfile(session)[1])
 check('the event records the buffer it came from', first.bufpath == prose .. '/a.md')
 check('the event records a mode', type(first.mode) == 'string' and first.mode ~= '')
 
+-- The analyzer counts a key only when it is one character, so an accented
+-- letter written as escaped bytes would never count as typed.
+type_into(prose .. '/a.md', 'aé<Esc>')
+local lines = vim.fn.readfile(session)
+check('a non-ASCII letter is logged as itself', vim.json.decode(lines[#lines - 1]).key == 'é')
+in_prose = events()
+
 vim.cmd('TyposOn')
 type_into(code .. '/c.lua', 'iforced<Esc>')
 local forced = events()

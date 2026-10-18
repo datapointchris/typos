@@ -38,7 +38,7 @@ analysis logic. Storage is the boundary — anything that needs raw events goes 
 | Field | Type | Notes |
 | ----- | ---- | ----- |
 | `ts_ns` | int | Monotonic-since-boot nanoseconds from `vim.uv.hrtime()`. Within-session IKIs only — ts_ns resets each boot, so callers must group by session file before computing intervals. |
-| `key` | string | Vim keytrans format. Printables: `"a"`, `" "`. Special: `"<BS>"`, `"<CR>"`, `"<Esc>"`, `"<Tab>"`. Internal K_SPECIAL bytes are sanitized to `<bin:HEX>` at write. |
+| `key` | string | Vim keytrans format. Printables: `"a"`, `" "`. Special: `"<BS>"`, `"<CR>"`, `"<Esc>"`, `"<Tab>"`. A well-formed non-ASCII character such as `"é"` is written as itself. A byte that is not valid UTF-8, such as a leaked K_SPECIAL code, is written as `<bin:HEX>`. |
 | `bufpath` | string | Absolute path of the active buffer. Under one of the configured `watch_dirs` unless `:TyposOn` forced capture on elsewhere; the check happens before write. |
 | `mode` | string | `"i"` insert, `"n"` normal, `"v"` visual, `"c"` cmdline. Insert-mode events are typing; others are navigation. The analyzer filters to `mode == 'i'`. |
 
