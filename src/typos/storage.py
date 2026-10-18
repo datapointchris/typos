@@ -55,11 +55,6 @@ def iter_events(path: Path) -> Iterator[dict[str, Any]]:
                 continue
 
 
-def iter_all_events(since: dt.date | None = None, until: dt.date | None = None) -> Iterator[dict[str, Any]]:
-    for path in list_session_files(since=since, until=until):
-        yield from iter_events(path)
-
-
 def days_active(since: dt.date | None = None, until: dt.date | None = None) -> int:
     return len({d for f in list_session_files(since=since, until=until) if (d := parse_session_date(f)) is not None})
 

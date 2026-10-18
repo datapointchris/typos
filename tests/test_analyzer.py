@@ -12,6 +12,7 @@ from typos.analyzer import damage_scores
 from typos.analyzer import mistyped_words
 from typos.analyzer import parse_since
 from typos.analyzer import reconstruct
+from typos.analyzer import reconstruct_sessions
 from typos.analyzer import resolve_window
 from typos.analyzer import session_wpm_components
 from typos.analyzer import trailing_word
@@ -103,6 +104,20 @@ def test_bigram_stats_counts_ikis() -> None:
     assert stats['he'].ikis_ns == [1_000_000]
     assert stats['lo'].ikis_ns == [4_000_000]
     assert stats['ll'].count == 1
+
+
+def test_a_window_never_pairs_or_corrects_across_session_files() -> None:
+    # The second file's clock restarted at boot, and its opening backspace has
+    # nothing of its own to delete.
+    window = reconstruct_sessions(
+        [
+            [event('c', 900), event('a', 901), event('t', 902)],
+            [event('<BS>', 1), event('d', 2), event('o', 3), event('g', 4)],
+        ]
+    )
+    assert 'td' not in window.bigram_stats()
+    assert window.corrections == []
+    assert window.chars == 6
 
 
 def test_damage_score_is_zero_when_uniform_speed() -> None:

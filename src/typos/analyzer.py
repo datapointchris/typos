@@ -7,6 +7,7 @@ from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass
 from dataclasses import field
+from itertools import pairwise
 
 SINCE_RELATIVE = re.compile(r'^(\d+)d$')
 
@@ -185,16 +186,47 @@ def reconstruct(events: Iterable[dict]) -> Reconstruction:
     return Reconstruction(text=text, char_timings=buffer, corrections=corrections)
 
 
-def bigram_stats(char_timings: list[tuple[str, int]]) -> dict[str, BigramStats]:
+def bigram_stats(*runs: list[tuple[str, int]]) -> dict[str, BigramStats]:
+    """Count and time each adjacent pair of characters within a run, never across two."""
     stats: dict[str, BigramStats] = {}
-    for i in range(len(char_timings) - 1):
-        c1, t1 = char_timings[i]
-        c2, t2 = char_timings[i + 1]
-        bg = c1 + c2
-        entry = stats.setdefault(bg, BigramStats(bigram=bg))
-        entry.count += 1
-        entry.ikis_ns.append(t2 - t1)
+    for char_timings in runs:
+        for (c1, t1), (c2, t2) in pairwise(char_timings):
+            bg = c1 + c2
+            entry = stats.setdefault(bg, BigramStats(bigram=bg))
+            entry.count += 1
+            entry.ikis_ns.append(t2 - t1)
     return stats
+
+
+@dataclass
+class WindowReconstruction:
+    """Every session file in a window, each reconstructed on its own.
+
+    `ts_ns` restarts at boot, so two keys from different files have no interval
+    between them, and a backspace that opens one file cannot delete what another
+    file typed. Each statistic that pairs keys or edits text is computed within
+    one session and pooled afterwards.
+    """
+
+    sessions: list[Reconstruction]
+
+    @property
+    def chars(self) -> int:
+        return sum(len(s.text) for s in self.sessions)
+
+    @property
+    def corrections(self) -> list[Correction]:
+        return [c for s in self.sessions for c in s.corrections]
+
+    def bigram_stats(self) -> dict[str, BigramStats]:
+        return bigram_stats(*(s.char_timings for s in self.sessions))
+
+    def mistyped_words(self) -> list[WordMisstats]:
+        return mistyped_words('\n'.join(s.text for s in self.sessions), self.corrections)
+
+
+def reconstruct_sessions(sessions: Iterable[Iterable[dict]]) -> WindowReconstruction:
+    return WindowReconstruction(sessions=[reconstruct(events) for events in sessions])
 
 
 def damage_scores(stats: dict[str, BigramStats]) -> list[DamageScore]:

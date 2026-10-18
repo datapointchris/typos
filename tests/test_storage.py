@@ -8,7 +8,6 @@ import pytest
 
 from typos.storage import append_event
 from typos.storage import days_active
-from typos.storage import iter_all_events
 from typos.storage import iter_events
 from typos.storage import list_session_files
 from typos.storage import parse_session_date
@@ -60,7 +59,5 @@ def test_until_alone_excludes_its_own_date(dated_sessions: list[str]) -> None:
     assert [p.stem for p in found] == ['2026-06-20', '2026-06-21']
 
 
-def test_iter_all_events_and_days_active_honour_the_same_window(dated_sessions: list[str]) -> None:
-    window = {'since': dt.date(2026, 6, 21), 'until': dt.date(2026, 6, 23)}
-    assert len(list(iter_all_events(**window))) == 2
-    assert days_active(**window) == 2
+def test_days_active_honors_the_window(dated_sessions: list[str]) -> None:
+    assert days_active(since=dt.date(2026, 6, 21), until=dt.date(2026, 6, 23)) == 2
