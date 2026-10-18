@@ -39,8 +39,8 @@ def resolve_window(
     back from there: `--since 7d` is the last seven days, today included, and
     `--until 7d` leaves out exactly those seven. A given `until` is the report's
     frame of reference instead: `--since 7d --until 2026-07-01` asks about
-    2026-06-24 through 2026-06-30. An absolute `since` is unaffected, and with no
-    `until` the window has no upper bound.
+    2026-06-24 through 2026-06-30. An absolute `since` is unaffected. With no
+    `until` the returned upper bound is None, because nothing is logged after today.
     """
     end = window_end(today)
     until_date = parse_since(until, anchor=end)
