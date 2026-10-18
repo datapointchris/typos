@@ -1,17 +1,25 @@
 # typos
 
-Passive typing analyzer. Captures keystrokes while you write real prose in Neovim and
-surfaces patterns you can act on: damaging bigrams, mistyped words, typing rhythm
-consistency over time. Practice generation is a secondary feature, derived from the same
-data — never from canned word lists.
+A passive typing analyzer for prose written in Neovim. A Lua plugin records each keystroke you make
+in the directories you write in. A Python CLI reads that log back as patterns worth acting on: the
+bigrams costing you the most time, the words you correct most often, and how steady your rhythm is
+from one week to the next.
 
-## Installation
+It instruments the typing you already do and sets no exercises. A trainer such as `nvzone/typr` is
+the neighbor: typos finds the patterns, and the trainer drills them. It is unrelated to the
+source-code spell checker that holds the name `typos` on PyPI.
+
+## Install
 
 ```bash
-uv tool install git+https://github.com/datapointchris/typos
+uv tool install git+https://github.com/datapointchris/typos   # the CLI, from this repository
+task install                                                   # or from a checkout, editable
 ```
 
-Then add the Lua plugin to your Neovim config (lazy.nvim example):
+Install from the repository, because PyPI's `typos` is that spell checker. Both put a `typos`
+executable on `PATH`, and whichever comes first there answers.
+
+The plugin needs Neovim 0.10 or later, the first release with `vim.uv`. With lazy.nvim:
 
 ```lua
 {
@@ -19,64 +27,148 @@ Then add the Lua plugin to your Neovim config (lazy.nvim example):
   ft = 'markdown',
   cmd = { 'TyposOn', 'TyposOff', 'TyposAuto', 'TyposStatus' },
   opts = {
-    watch_dirs = { '~/notes', '~/writing' },
+    watch_dirs = { '~/writing', '~/journal' },
   },
 }
 ```
 
-`watch_dirs` is the auto-on list: capture runs whenever the current buffer sits
-under one of them, and stays off everywhere else. There is no default — the plugin
-has no idea where your prose lives, so it watches nothing until you say. A single
-directory may be given as a bare string, and `~` is expanded for you.
+`watch_dirs` is the auto-on list. Capture runs in any buffer whose path starts with one of them, and
+stays off everywhere else. A single directory may be a bare string. `~` is expanded, and a trailing
+slash is dropped.
 
-The spec needs no condition guarding it. A machine whose `watch_dirs` are absent
-captures nothing, and `setup()` creates no directories either — the session
-directory appears with the first captured keystroke.
+`ft` decides only when the plugin loads. Capture follows the buffer's path and ignores its filetype,
+so prose kept in anything but markdown wants `event = 'VeryLazy'` in place of `ft`.
 
-## Commands
+## Starting from scratch
 
-### Neovim
+```bash
+uv tool install git+https://github.com/datapointchris/typos  # the CLI
+# add the spec above to your Neovim config, with watch_dirs naming where you write
+nvim ~/writing/first-draft.md   # type a few lines; the first key creates the log
+:TyposStatus                    # inside Neovim: auto (on here), and events above 0
+typos status                    # the data dir the CLI reads; latest is today's file
+typos report                    # your keys back, counted and timed
+```
 
-| Command | Purpose |
-| ------- | ------- |
-| `:TyposOn` | Capture in every buffer this session, ignoring `watch_dirs` |
-| `:TyposOff` | Stop capture this session, including inside `watch_dirs` |
-| `:TyposAuto` | Return to following `watch_dirs` (the default) |
-| `:TyposStatus` | Show capture state, scope, session file path, event count |
+`watch_dirs` has no default, since any default would be one person's layout shipped as everyone's.
+Until it is set, the plugin captures nothing. `setup()` creates nothing on disk either, so the spec
+needs no guard on a machine where those directories are absent. The session directory appears with
+the first captured keystroke.
 
-`On` and `Off` are a session override on top of `watch_dirs`, so each is idempotent and
-a keybind can assert a state without reading the current one first. Neither is
-persisted: a remembered "off" is how you lose weeks of capture without noticing,
-so the worst case is losing the session you turned off in.
+When `:TyposStatus` counts events and `typos status` says `sessions: 0`, the two halves are reading
+different directories. Each resolves the path from its own environment: `TYPOS_DATA_DIR` first, then
+`$XDG_STATE_HOME/typos`, then `~/.local/state/typos`. The plugin also takes a `data_dir` option, and
+the CLI never reads it. Move the log with the environment variable rather than the option.
 
-### CLI
+## The `:Typos` commands — a session override on top of `watch_dirs`, never a saved switch
 
-| Command | Purpose |
-| ------- | ------- |
-| `typos status` | Show data location, session count, latest session file |
-| `typos report` | Totals, WPM 7d/30d, IKI variance, damaging bigrams, mistyped words, week-over-week deltas |
-| `typos problems` | Top mistyped words (`--raw` for raw correction pairs) |
-| `typos generate` | Generate practice text from current weak patterns (stub) |
+```vim
+:TyposStatus   " state, watch_dirs, the session file, events written since the plugin loaded
+:TyposOn       " capture in every buffer this session, watch_dirs or not
+:TyposOff      " capture nowhere this session, watch_dirs included
+:TyposAuto     " follow watch_dirs again, which is where every session starts
+```
 
-Both `report` and `problems` scope the analysis with `--since` (default `7d`) and `--until`,
-each taking `<N>d` or `YYYY-MM-DD`. The window is half-open — `--since` is inclusive, `--until`
-is exclusive. `--until` is the frame of reference for everything downstream of it: a relative
-`--since` counts back from it, and so do the windows `report` derives for WPM, IKI variance,
-and the week-over-week deltas. `--top N` (default 10) controls table length.
+The override has three states: forced on, forced off, and following `watch_dirs`. A toggle over three
+states has no single obvious meaning, so there is none. `:TyposOn` and `:TyposOff` each assert one
+state. Both are idempotent, so a keybind can set a state without reading the current one.
 
-## Architecture
+Nothing is persisted. A remembered "off" is how weeks of capture disappear without anyone noticing.
+A session override loses at most the session it was set in, and the next start follows `watch_dirs`
+again.
 
-Two layers, decoupled by the JSONL event log:
+`:TyposOn` means every buffer. No buffer type is checked, so a terminal buffer's keystrokes are
+logged too.
 
-- **Capture** (`lua/typos/init.lua`): Hooks `vim.on_key()`, writes events when the buffer
-  path is under one of `watch_dirs`, with a per-session command override. No daemon — the data
-  file is the state.
-- **Analysis** (`src/typos/`): Python CLI. Reads JSONL, reconstructs correction events,
-  computes damage scores, surfaces patterns. Mirrors the three-layer pattern from `digest`:
-  `storage.py` → `analyzer.py` → `main.py`.
+Capture is decided on each keystroke from the current buffer's path. The question is "am I writing
+prose", and the path answers it directly. A mode set by an autocmd could fall out of step across
+splits, tabs, terminals, or a file moved mid-session. Reading the path costs one prefix comparison
+per watched directory.
 
-Storage default: `$XDG_STATE_HOME/typos/sessions/YYYY-MM-DD.jsonl`, falling back to
-`~/.local/state/typos`. Override with `TYPOS_DATA_DIR`, which both halves read.
+## `typos` — bigrams ranked by the time they cost, not by how often they go wrong
 
-The event schema (`{ts_ns, key, bufpath, mode}` per line) and the damage-score formula
-are documented in `CLAUDE.md`.
+```bash
+typos status               # where the CLI reads, how many day files, and the latest
+typos report               # the weekly read: totals, WPM, rhythm, damaging bigrams, mistyped words
+typos report --since 30d   # the same read over a month
+typos problems --raw       # the deleted and retyped keys behind a word the report flagged
+```
+
+`report` ranks bigrams by damage:
+
+```text
+damage = count × max(0, median − baseline) / median
+```
+
+`count` is how often the bigram occurs in the window. `median` is its median interval between the
+two keys. `baseline` is your own median interval across every bigram. A bigram typed at or under
+your baseline scores zero. Frequency carries the weight, so a slightly slow bigram you type all day
+outranks a very slow one you type twice a year.
+
+A correction is a run of backspaces in insert mode and whatever was typed after it, credited to the
+word being typed. `problems` ranks words by their corrections. `--raw` counts corrections instead
+as pairs of the keys deleted and the keys retyped.
+
+WPM counts active time only. A gap of five seconds or more between keys is a pause and is left out,
+and five characters count as a word. IKI variance is the spread of the intervals between keys over
+the last seven days, set beside the seven before. A lower number is a steadier rhythm. The report
+closes on the bigrams whose damage moved more than 20% week over week.
+
+`--since` is inclusive and `--until` is exclusive. `--until` is the frame of reference: a relative
+`--since` counts back from it, and so does every window `report` derives for WPM, variance and the
+weekly deltas. `--since 7d --until 2026-07-01` reads 24 June through 30 June. With no `--until`,
+all of them count back from today.
+
+`typos generate` is a stub that prints `not yet implemented`. It is reserved for practice text drawn
+from your own weak patterns, never from a canned word list.
+
+## The log — append-only JSONL, and the only thing the two halves share
+
+There is no daemon. The plugin appends one JSON object per keystroke to
+`$XDG_STATE_HOME/typos/sessions/YYYY-MM-DD.jsonl`, falling back to `~/.local/state/typos`, and the
+CLI reads the same files. `TYPOS_DATA_DIR` overrides the location for both. A file is named for the
+day Neovim loaded the plugin, so a session that runs past midnight stays in the day it began.
+
+```json
+{"ts_ns": 758059084204886, "key": "T", "bufpath": "/home/you/writing/draft.md", "mode": "i"}
+```
+
+- `ts_ns` is `vim.uv.hrtime()`, nanoseconds on a clock that restarts at boot. It measures the
+  intervals between keys, never the time of day.
+- `key` is in Neovim's `keytrans` notation: `a`, `<Space>`, `<BS>`, `<CR>`, `<C-a>`. A modifier is
+  part of the key, never an event of its own. A byte outside printable ASCII is written as
+  `<bin:HEX>`, so the line stays valid UTF-8.
+- `bufpath` is the buffer's absolute path.
+- `mode` is Neovim's mode string. Only `i` is typing. The analyzer reads insert-mode events, and any
+  other event ends the correction in progress.
+
+Readers ignore keys they do not know, so a field can be added without breaking an older analyzer.
+
+The log holds no buffer contents and no window, tab or split. The keystrokes still reconstruct what
+you typed, which is how the analyzer finds words, so the log is as private as the prose.
+
+The analysis side runs in one direction. `storage.py` reads the files, `analyzer.py` turns events
+into statistics, and `main.py` prints them. Storage holds no analysis, and nothing reads the files
+except through it.
+
+The log is JSONL rather than SQLite because both kinds of analysis stay one command. Bulk analysis
+is a `jq` pipeline, and incremental analysis is `tail -f`. Both lines read the default location,
+and `typos status` prints yours:
+
+```bash
+jq -r 'select(.mode == "i") | .key' ~/.local/state/typos/sessions/*.jsonl | sort | uniq -c | sort -rn | head
+tail -f ~/.local/state/typos/sessions/"$(date +%F)".jsonl   # keys as they arrive
+```
+
+No schema has to migrate as the analysis changes. SQLite would add a query layer between the events
+and the analyzer, and buy nothing at keystroke volume.
+
+## No dashboard, no live WPM, no keyboard detection
+
+- No live WPM in the statusline. It is a vanity metric, and it distracts while writing.
+- No dashboard. The CLI report is the only interface.
+- No canned typing tests. Drilling belongs to a trainer.
+- No keyboard-layout opinions. The analyzer treats keys as keys, whatever the layout.
+- No keyboard detection. Keys from a second keyboard are noise the analysis accepts, because
+  detecting the device needs an out-of-band evdev process or a `/dev/input/by-id/` poll. That is
+  platform-specific machinery for a marginal gain.
