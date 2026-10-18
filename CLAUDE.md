@@ -30,7 +30,7 @@ analysis logic. Storage is the boundary — anything that needs raw events goes 
 {
   "ts_ns": 12345678900,
   "key": "a",
-  "bufpath": "/home/chris/notes/dreams/2026-04-26.md",
+  "bufpath": "/home/you/writing/2026-04-26.md",
   "mode": "i"
 }
 ```
@@ -38,13 +38,13 @@ analysis logic. Storage is the boundary — anything that needs raw events goes 
 | Field | Type | Notes |
 | ----- | ---- | ----- |
 | `ts_ns` | int | Monotonic-since-boot nanoseconds from `vim.uv.hrtime()`. Within-session IKIs only — ts_ns resets each boot, so callers must group by session file before computing intervals. |
-| `key` | string | Vim keytrans format. Printables: `"a"`, `" "`. Special: `"<BS>"`, `"<CR>"`, `"<Esc>"`, `"<Tab>"`. A well-formed non-ASCII character such as `"é"` is written as itself. A byte that is not valid UTF-8, such as a leaked K_SPECIAL code, is written as `<bin:HEX>`. |
+| `key` | string | Vim keytrans format. Printables: `"a"`, and a well-formed non-ASCII character such as `"é"` written as itself. Special: `"<Space>"`, `"<BS>"`, `"<CR>"`, `"<Esc>"`, `"<Tab>"`. A byte that is not valid UTF-8, such as a leaked K_SPECIAL code, is written as `<bin:HEX>`. |
 | `bufpath` | string | Absolute path of the active buffer. Under one of the configured `watch_dirs` unless `:TyposOn` forced capture on elsewhere; the check happens before write. |
-| `mode` | string | `"i"` insert, `"n"` normal, `"v"` visual, `"c"` cmdline. Insert-mode events are typing; others are navigation. The analyzer filters to `mode == 'i'`. |
+| `mode` | string | The mode string `nvim_get_mode()` returns: `"i"` insert, `"n"` normal, `"v"` visual, `"c"` cmdline, and compound modes such as `"no"` operator-pending and `"nt"` normal in a terminal buffer. Insert-mode events are typing; others are navigation. The analyzer filters to `mode == 'i'`. |
 
 The format is intentionally append-only and additive. Future fields are optional; consumers ignore unknown keys. No version field in v1 — if a breaking change is ever needed, the path becomes `sessions/v2/...` and the analyzer reads both transparently.
 
-What is NOT captured: buffer contents (reconstructable from the keystroke stream), window/tab/split context, mouse events, modifiers as separate events (already encoded in keytrans output as e.g. `<C-a>`).
+What is NOT captured: buffer contents (reconstructable from the keystroke stream), window/tab/split context, modifiers as separate events (already encoded in keytrans output as e.g. `<C-a>`). Mouse clicks are captured, as keys such as `<LeftMouse>` and `<LeftRelease>`, and the analyzer counts none of them as typed.
 
 ## Why JSONL not SQLite
 
@@ -80,15 +80,21 @@ poll, both of which add platform-specific complexity for marginal gain.
 
 ## Damage scoring
 
-The "most mistyped" framing is misleading on its own. A bigram you mistype 50% of the
-time but only see twice a year matters less than a bigram you mistype 5% of the time but
-hit 200x/day. The right weight (Amphetype-style):
+Damage is timing alone; no error count enters it. Slowness is misleading on its own: a
+bigram that takes three times your usual interval but turns up twice a year costs less than
+one a little slow that you hit 200 times a day. The weight (Amphetype-style) is frequency
+times relative slowdown:
 
 ```text
-damage = frequency_in_corpus × max(0, your_time - reference_time) / your_time
+damage = count × max(0, median − baseline) / median
 ```
 
-Reports rank by damage, not raw error count.
+`count` is how often the bigram occurs in the window and `median` is its median interval.
+`baseline` is the median interval across every bigram in the window, so the reference is
+your own typing rather than a published speed, and a bigram at or under it scores zero.
+
+Reports rank bigrams by damage. Corrections rank words separately, in the mistyped-words
+table.
 
 ## Anti-features
 
