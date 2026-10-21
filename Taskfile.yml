@@ -19,7 +19,7 @@ tasks:
       - uv sync
 
   lint:
-    desc: Lint and type check both languages
+    desc: Lint both languages and type check the Python
     cmds:
       - task: python:lint
       - task: typecheck
