@@ -250,8 +250,12 @@ def session_wpm_components(events: Iterable[dict]) -> tuple[int, int]:
     return (len(rec.text), sum(char_timing_burst_ikis(rec.char_timings)))
 
 
-def compute_wpm(sessions: Iterable[Iterable[dict]]) -> float:
-    """Aggregate active-time WPM across sessions: chars/5 over burst minutes."""
+def compute_wpm(sessions: Iterable[Iterable[dict]]) -> float | None:
+    """Aggregate active-time WPM across sessions: chars/5 over burst minutes.
+
+    None when the sessions hold no active typing time, so an empty window reads apart from a
+    measured zero.
+    """
     total_chars = 0
     total_active_ns = 0
     for events in sessions:
@@ -259,19 +263,22 @@ def compute_wpm(sessions: Iterable[Iterable[dict]]) -> float:
         total_chars += chars
         total_active_ns += active_ns
     if total_active_ns == 0:
-        return 0.0
+        return None
     minutes = total_active_ns / 1_000_000_000 / 60
     return (total_chars / 5) / minutes
 
 
-def compute_iki_variance(sessions: Iterable[Iterable[dict]]) -> float:
-    """Population variance of typing-burst IKIs (ns²) across sessions."""
+def compute_iki_variance(sessions: Iterable[Iterable[dict]]) -> float | None:
+    """Population variance of typing-burst IKIs (ns²) across sessions.
+
+    None with fewer than two intervals, where no variance was measured.
+    """
     all_ikis: list[int] = []
     for events in sessions:
         rec = reconstruct(events)
         all_ikis.extend(char_timing_burst_ikis(rec.char_timings))
     if len(all_ikis) < 2:
-        return 0.0
+        return None
     return statistics.pvariance(all_ikis)
 
 

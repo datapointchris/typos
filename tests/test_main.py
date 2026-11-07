@@ -32,7 +32,9 @@ def test_wpm_windows_end_at_until_and_otherwise_at_today(sessions_dir: Path) -> 
     write_session(sessions_dir, typed_on, list('abcdefghij'))
 
     wpm_7d, wpm_30d = wpm_windows(until=typed_on + dt.timedelta(days=1))
+    assert wpm_7d is not None
     assert wpm_7d > 0
+    assert wpm_30d is not None
     assert wpm_30d > 0
 
-    assert wpm_windows(until=None) == (0.0, 0.0)
+    assert wpm_windows(until=None) == (None, None)

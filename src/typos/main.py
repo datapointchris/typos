@@ -34,10 +34,11 @@ def per_session_events(since: dt.date | None = None, until: dt.date | None = Non
         yield list(iter_events(path))
 
 
-def wpm_windows(until: dt.date | None) -> tuple[float, float]:
+def wpm_windows(until: dt.date | None) -> tuple[float | None, float | None]:
     """Active-time WPM over the 7 and 30 days before `until`, or through today when it is None.
 
     `until` is the exclusive last day `resolved` returns, so both windows end where the read does.
+    A window with no active typing time is None.
     """
     anchor = until or window_end()
     return (
@@ -46,13 +47,19 @@ def wpm_windows(until: dt.date | None) -> tuple[float, float]:
     )
 
 
-def format_iki_variance(current_ns2: float, prior_ns2: float) -> str:
-    current = variance_ns_to_ms(current_ns2)
-    prior = variance_ns_to_ms(prior_ns2)
-    if current == 0 and prior == 0:
+def format_wpm(wpm: float | None) -> str:
+    """One decimal place, or `—` where nothing was measured."""
+    return '—' if wpm is None else f'{wpm:.1f}'
+
+
+def format_iki_variance(current_ns2: float | None, prior_ns2: float | None) -> str:
+    """This week's variance in ms², with last week's beside it where both were measured."""
+    if current_ns2 is None:
         return '—'
-    if prior == 0:
+    current = variance_ns_to_ms(current_ns2)
+    if prior_ns2 is None:
         return f'{current:.0f}ms²'
+    prior = variance_ns_to_ms(prior_ns2)
     direction = 'down' if current < prior else 'up'
     return f'{current:.0f}ms²  ({direction} from {prior:.0f}ms² last week)'
 
@@ -165,8 +172,8 @@ def report_cmd(
     console.print(f'  total chars:  {window.chars:,}')
     console.print(f'  bigrams:      {len(stats):,}')
     console.print(f'  corrections:  {len(window.corrections)}')
-    console.print(f'  WPM (7d):     {wpm_7d:.1f}')
-    console.print(f'  WPM (30d):    {wpm_30d:.1f}')
+    console.print(f'  WPM (7d):     {format_wpm(wpm_7d)}')
+    console.print(f'  WPM (30d):    {format_wpm(wpm_30d)}')
     console.print(f'  IKI variance: {format_iki_variance(var_current, var_prior)}')
     console.print()
 

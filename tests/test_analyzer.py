@@ -189,9 +189,14 @@ def test_compute_wpm_aggregates_across_sessions() -> None:
     assert wpm == 60.0
 
 
-def test_compute_wpm_zero_with_no_active_time() -> None:
-    assert compute_wpm([[event('a', 0)]]) == 0.0
-    assert compute_wpm([]) == 0.0
+def test_compute_wpm_none_with_no_active_time() -> None:
+    assert compute_wpm([[event('a', 0)]]) is None
+    assert compute_wpm([]) is None
+
+
+def test_compute_iki_variance_none_with_fewer_than_two_intervals() -> None:
+    assert compute_iki_variance([[event('a', 0), event('b', 100_000_000)]]) is None
+    assert compute_iki_variance([]) is None
 
 
 def test_compute_iki_variance_zero_with_uniform_speed() -> None:
@@ -213,6 +218,7 @@ def test_compute_iki_variance_aggregates_across_sessions() -> None:
     session_a = [event('a', i * 100_000_000) for i in range(5)]
     session_b = [event('b', i * 200_000_000) for i in range(5)]
     variance = compute_iki_variance([session_a, session_b])
+    assert variance is not None
     assert variance > 0
 
 
