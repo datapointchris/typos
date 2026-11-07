@@ -74,6 +74,11 @@ tasks:
     cmds:
       - nvim --headless -u NONE -l tests/capture_spec.lua
 
+  build:
+    desc: Build the sdist and wheel into dist/, as the release does
+    cmds:
+      - uv build
+
   install:
     desc: Install the typos CLI as a uv tool
     cmds:
