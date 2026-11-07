@@ -55,11 +55,13 @@ the bigrams costing you the most time, and the top words beneath them. Reach for
 
 Examples:
 
-  typos report
+  typos status               confirm capture is writing sessions
 
-  typos report --since 30d
+  typos report               the weekly read: totals, slow bigrams, mistyped words
 
-  typos problems --raw
+  typos report --since 30d   the same read over a month
+
+  typos problems --raw       the exact wrong-for-right keys behind each word
 """
 
 typos_app = typer.Typer(no_args_is_help=True, help=ROOT_HELP)
