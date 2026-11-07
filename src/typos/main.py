@@ -67,6 +67,10 @@ Examples:
 typos_app = typer.Typer(no_args_is_help=True, help=ROOT_HELP)
 console = Console()
 
+# Help sections, named for what their commands are for.
+CHECK_CAPTURE_PANEL = 'Check capture'
+READ_TYPING_PANEL = 'Read your typing'
+
 
 def version_callback(asked: bool) -> None:
     """Print `typos <version>`, with the commit after it for a git install, and exit."""
@@ -86,7 +90,7 @@ def root(
     """Host the options that come before any command."""
 
 
-@typos_app.command('status')
+@typos_app.command('status', rich_help_panel=CHECK_CAPTURE_PANEL)
 def status_cmd() -> None:
     """Show data location, session count, and latest session file.
 
@@ -103,7 +107,7 @@ def status_cmd() -> None:
         console.print(f'latest:   {sessions[-1].name}')
 
 
-@typos_app.command('report')
+@typos_app.command('report', rich_help_panel=READ_TYPING_PANEL)
 def report_cmd(
     top: int = typer.Option(10, '--top', help='Number of bigrams to show.'),
     since: Since = None,
@@ -204,7 +208,7 @@ def report_cmd(
                 console.print(f'  {display_bigram(d.bigram):<6}  {d.prior_score:.1f} → {d.current_score:.1f}')
 
 
-@typos_app.command('problems')
+@typos_app.command('problems', rich_help_panel=READ_TYPING_PANEL)
 def problems_cmd(
     top: int = typer.Option(10, '--top', help='Number of items to show.'),
     since: Since = None,
