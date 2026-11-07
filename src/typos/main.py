@@ -66,6 +66,8 @@ Examples:
 
 typos_app = typer.Typer(no_args_is_help=True, help=ROOT_HELP)
 console = Console()
+# Empty states and other diagnostics, so stdout carries only what a command reports.
+stderr_console = Console(stderr=True)
 
 # Help sections, named for what their commands are for.
 CHECK_CAPTURE_PANEL = 'Check capture'
@@ -128,7 +130,10 @@ def report_cmd(
     cutoff, until_cutoff = resolved(since, until, dt.datetime.now().astimezone())
     sessions = list_session_files(since=cutoff, until=until_cutoff)
     if not sessions:
-        console.print(f'[yellow]no sessions in window ({described(cutoff, until_cutoff)})[/yellow]')
+        stderr_console.print(
+            f'[yellow]no sessions in window ({described(cutoff, until_cutoff)}); '
+            'widen --since, or run `typos status` to see where the CLI reads[/yellow]'
+        )
         return
 
     window = reconstruct_sessions(per_session_events(since=cutoff, until=until_cutoff))
@@ -156,7 +161,7 @@ def report_cmd(
     console.print()
 
     if not scores:
-        console.print('[yellow]no bigrams yet — type more to populate[/yellow]')
+        stderr_console.print('[yellow]no bigrams yet; type more in a buffer under watch_dirs, or widen --since[/yellow]')
         return
 
     console.print(f'[bold]top {top} damaging bigrams[/bold]')
@@ -231,7 +236,10 @@ def problems_cmd(
     window = reconstruct_sessions(per_session_events(since=cutoff, until=until_cutoff))
     corrections = window.corrections
     if not corrections:
-        console.print('[yellow]no corrections detected yet[/yellow]')
+        stderr_console.print(
+            f'[yellow]no corrections in window ({described(cutoff, until_cutoff)}); '
+            'widen --since, or run `typos status` to confirm capture is writing[/yellow]'
+        )
         return
 
     if raw:
