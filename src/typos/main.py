@@ -86,7 +86,14 @@ def root(
 
 @typos_app.command('status')
 def status_cmd() -> None:
-    """Show data location, session count, and latest session file."""
+    """Show data location, session count, and latest session file.
+
+    A latest session dated today means capture is writing while you type.
+
+    Examples:
+
+      typos status    confirm capture is writing sessions, and where they live
+    """
     sessions = list_session_files()
     console.print(f'data dir: {data_dir()}')
     console.print(f'sessions: {len(sessions)}')
@@ -103,6 +110,14 @@ def report_cmd(
     """Show typing report — totals and top damaging bigrams.
 
     The 7-day and 30-day WPM, the variance and the weekly deltas end where --until does.
+
+    Examples:
+
+      typos report                          the weekly read: the last 7 days
+
+      typos report --since 30d --top 20     a month's slow bigrams, past the first 10
+
+      typos report --since 14d --until 7d   the week before last, to compare with this one
     """
     cutoff, until_cutoff = resolved(since, until, dt.datetime.now().astimezone())
     sessions = list_session_files(since=cutoff, until=until_cutoff)
@@ -194,7 +209,18 @@ def problems_cmd(
     until: Until = None,
     raw: bool = typer.Option(False, '--raw', help='Show raw (wrong, right) pairs instead of word view.'),
 ) -> None:
-    """Show your most-mistyped words (or raw correction pairs with --raw)."""
+    """Show your most-mistyped words (or raw correction pairs with --raw).
+
+    A word's rate is the share of the times you typed it that you then corrected.
+
+    Examples:
+
+      typos problems                  the words you correct most often this week
+
+      typos problems --raw            the exact wrong-for-right keys behind those words
+
+      typos problems --since 30d      the same words over a month, for a steadier ranking
+    """
     cutoff, until_cutoff = resolved(since, until, dt.datetime.now().astimezone())
     window = reconstruct_sessions(per_session_events(since=cutoff, until=until_cutoff))
     corrections = window.corrections
