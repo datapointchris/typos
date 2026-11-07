@@ -12,13 +12,15 @@ source-code spell checker that holds the name `typos` on PyPI.
 ## Install
 
 ```bash
+uv tool install git+https://github.com/datapointchris/typos           # the CLI, from source
 uv tool install --index https://pypi.ichrisbirch.com/simple/ typos   # the CLI, from its own index
 task install                                                          # or from a checkout, editable
 ```
 
-Every release is published to that package index. Name it on the install, because PyPI's `typos`
-is that spell checker. Both put a `typos` executable on `PATH`, and whichever comes first there
-answers. uv records the index beside the tool, so `uv tool upgrade typos` reads it back.
+The git install builds the default branch and needs no credentials. Every release is also published
+to the package index on the second line. Name it on that install, because PyPI's `typos` is that
+spell checker. Each puts a `typos` executable on `PATH`, and whichever comes first there answers.
+uv records the source beside the tool, so `uv tool upgrade typos` reads it back.
 
 The plugin needs Neovim 0.10 or later, the first release with `vim.uv`. With lazy.nvim:
 
@@ -43,7 +45,7 @@ so prose kept in anything but markdown wants `event = 'VeryLazy'` in place of `f
 ## Starting from scratch
 
 ```bash
-uv tool install --index https://pypi.ichrisbirch.com/simple/ typos  # the CLI
+uv tool install git+https://github.com/datapointchris/typos  # the CLI
 # add the spec above to your Neovim config, with watch_dirs naming where you write
 nvim ~/writing/first-draft.md   # type a few lines; the first key creates the log
 :TyposStatus                    # inside Neovim: auto (on here), and events above 0
