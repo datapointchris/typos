@@ -61,7 +61,7 @@ different directories. Each resolves the path from its own environment: `TYPOS_D
 `$XDG_STATE_HOME/typos`, then `~/.local/state/typos`. The plugin also takes a `data_dir` option, and
 the CLI never reads it. Move the log with the environment variable rather than the option.
 
-## The `:Typos` commands — a session override on top of `watch_dirs`, never a saved switch
+## The `:Typos` commands
 
 ```vim
 :TyposStatus   " state, watch_dirs, the session file, events written since the plugin loaded
@@ -86,7 +86,7 @@ prose", and the path answers it directly. A mode set by an autocmd could fall ou
 splits, tabs, terminals, or a file moved mid-session. Reading the path costs one prefix comparison
 per watched directory.
 
-## `typos` — bigrams ranked by the time they cost, not by how often they go wrong
+## The `typos` CLI
 
 ```bash
 typos status               # where the CLI reads, how many day files, and the latest
@@ -151,10 +151,6 @@ Readers ignore keys they do not know, so a field can be added without breaking a
 
 The log holds no buffer contents and no window, tab or split. The keystrokes still reconstruct what
 you typed, which is how the analyzer finds words, so the log is as private as the prose.
-
-The analysis side runs in one direction. `storage.py` reads the files, `analyzer.py` turns events
-into statistics, and `main.py` prints them. Storage holds no analysis, and nothing reads the files
-except through it.
 
 The log is JSONL rather than SQLite because both kinds of analysis stay one command. Bulk analysis
 is a `jq` pipeline, and incremental analysis is `tail -f`. Both lines read the default location,

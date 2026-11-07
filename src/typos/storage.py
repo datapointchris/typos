@@ -42,8 +42,7 @@ def list_session_files(since: dt.date | None = None, until: dt.date | None = Non
 def iter_events(path: Path) -> Iterator[dict[str, Any]]:
     # errors='replace' keeps one malformed byte from ending the read. The plugin
     # writes only valid UTF-8, but a file edited by hand or written by another
-    # tool makes no such promise. Malformed JSON lines are skipped silently —
-    # the capture layer should be the source of truth for log integrity.
+    # tool makes no such promise. A line that is not valid JSON is skipped.
     with path.open(encoding='utf-8', errors='replace') as f:
         for raw in f:
             line = raw.strip()

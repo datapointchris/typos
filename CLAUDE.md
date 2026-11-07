@@ -80,18 +80,9 @@ poll, both of which add platform-specific complexity for marginal gain.
 
 ## Damage scoring
 
-Damage is timing alone; no error count enters it. Slowness is misleading on its own: a
-bigram that takes three times your usual interval but turns up twice a year costs less than
-one a little slow that you hit 200 times a day. The weight (Amphetype-style) is frequency
-times relative slowdown:
-
-```text
-damage = count × max(0, median − baseline) / median
-```
-
-`count` is how often the bigram occurs in the window and `median` is its median interval.
-`baseline` is the median interval across every bigram in the window, so the reference is
-your own typing rather than a published speed, and a bigram at or under it scores zero.
+Damage is timing alone; no error count enters it. The weight (Amphetype-style) is frequency
+times relative slowdown, computed in `analyzer.damage_scores`; README's `typos` section gives
+the formula and what each term means.
 
 Reports rank bigrams by damage. Corrections rank words separately, in the mistyped-words
 table.
