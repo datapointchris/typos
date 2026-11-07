@@ -34,6 +34,18 @@ def per_session_events(since: dt.date | None = None, until: dt.date | None = Non
         yield list(iter_events(path))
 
 
+def wpm_windows(until: dt.date | None) -> tuple[float, float]:
+    """Active-time WPM over the 7 and 30 days before `until`, or through today when it is None.
+
+    `until` is the exclusive last day `resolved` returns, so both windows end where the read does.
+    """
+    anchor = until or window_end()
+    return (
+        compute_wpm(per_session_events(since=anchor - dt.timedelta(days=7), until=until)),
+        compute_wpm(per_session_events(since=anchor - dt.timedelta(days=30), until=until)),
+    )
+
+
 def format_iki_variance(current_ns2: float, prior_ns2: float) -> str:
     current = variance_ns_to_ms(current_ns2)
     prior = variance_ns_to_ms(prior_ns2)
@@ -143,9 +155,7 @@ def report_cmd(
     anchor = until_cutoff or window_end()
     cutoff_7d = anchor - dt.timedelta(days=7)
     cutoff_14d = anchor - dt.timedelta(days=14)
-    cutoff_30d = anchor - dt.timedelta(days=30)
-    wpm_7d = compute_wpm(per_session_events(since=cutoff_7d, until=until_cutoff))
-    wpm_30d = compute_wpm(per_session_events(since=cutoff_30d, until=until_cutoff))
+    wpm_7d, wpm_30d = wpm_windows(until_cutoff)
     var_current = compute_iki_variance(per_session_events(since=cutoff_7d, until=until_cutoff))
     var_prior = compute_iki_variance(per_session_events(since=cutoff_14d, until=cutoff_7d))
 
