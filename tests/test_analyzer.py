@@ -7,15 +7,12 @@ from pathlib import Path
 
 from typos.analyzer import DamageScore
 from typos.analyzer import bigram_stats
-from typos.analyzer import compute_iki_variance
-from typos.analyzer import compute_wpm
 from typos.analyzer import damage_deltas
 from typos.analyzer import damage_scores
 from typos.analyzer import median_of_sorted
 from typos.analyzer import mistyped_words
 from typos.analyzer import reconstruct
 from typos.analyzer import reconstruct_sessions
-from typos.analyzer import session_wpm_components
 from typos.analyzer import trailing_word
 from typos.analyzer import variance_ns_to_ms
 from typos.storage import iter_events
@@ -172,66 +169,57 @@ def test_fixture_smoke() -> None:
     assert all(s.median_iki_ns > 0 for s in scores)
 
 
-def test_session_wpm_components_excludes_idle_gaps() -> None:
+def test_active_time_excludes_idle_gaps() -> None:
     # 5 chars, IKIs: 100ms, 100ms, 6_000ms (idle), 100ms.
     # Idle gap drops out, leaving 300ms total active time.
-    events = [
-        event('a', 0),
-        event('b', 100_000_000),
-        event('c', 200_000_000),
-        event('d', 6_200_000_000),
-        event('e', 6_300_000_000),
-    ]
-    chars, active_ns = session_wpm_components(events)
-    assert chars == 5
-    assert active_ns == 300_000_000
+    window = reconstruct_sessions(
+        [
+            [
+                event('a', 0),
+                event('b', 100_000_000),
+                event('c', 200_000_000),
+                event('d', 6_200_000_000),
+                event('e', 6_300_000_000),
+            ]
+        ]
+    )
+    assert window.chars == 5
+    assert window.active_ns == 300_000_000
 
 
-def test_session_wpm_components_short_buffer() -> None:
-    chars, active_ns = session_wpm_components([event('a', 0)])
-    assert chars == 1
-    assert active_ns == 0
-
-
-def test_compute_wpm_aggregates_across_sessions() -> None:
+def test_wpm_aggregates_across_sessions() -> None:
     # Two sessions, each 5 chars over 1 second of active time.
     # Total: 10 chars / 5 chars-per-word = 2 words; 2 seconds = 1/30 minute.
     # WPM = 2 / (1/30) = 60.
     session_a = [event('a', i * 250_000_000) for i in range(5)]
     session_b = [event('b', i * 250_000_000) for i in range(5)]
-    wpm = compute_wpm([session_a, session_b])
-    assert wpm == 60.0
+    assert reconstruct_sessions([session_a, session_b]).wpm() == 60.0
 
 
-def test_compute_wpm_none_with_no_active_time() -> None:
-    assert compute_wpm([[event('a', 0)]]) is None
-    assert compute_wpm([]) is None
+def test_wpm_none_with_no_active_time() -> None:
+    assert reconstruct_sessions([[event('a', 0)]]).wpm() is None
+    assert reconstruct_sessions([]).wpm() is None
 
 
-def test_compute_iki_variance_none_with_fewer_than_two_intervals() -> None:
-    assert compute_iki_variance([[event('a', 0), event('b', 100_000_000)]]) is None
-    assert compute_iki_variance([]) is None
+def test_iki_variance_none_with_fewer_than_two_intervals() -> None:
+    assert reconstruct_sessions([[event('a', 0), event('b', 100_000_000)]]).iki_variance() is None
+    assert reconstruct_sessions([]).iki_variance() is None
 
 
-def test_compute_iki_variance_zero_with_uniform_speed() -> None:
-    events = [event('a', i * 100_000_000) for i in range(10)]
-    assert compute_iki_variance([events]) == 0.0
-
-
-def test_compute_iki_variance_excludes_idle_gaps() -> None:
+def test_iki_variance_excludes_idle_gaps() -> None:
     events = [event('x', 0)]
     for i in range(4):
         events.append(event('a', (i + 1) * 100_000_000))
     events.append(event('b', 10_500_000_000))
     for i in range(4):
         events.append(event('c', 10_500_000_000 + (i + 1) * 100_000_000))
-    assert compute_iki_variance([events]) == 0.0
+    assert reconstruct_sessions([events]).iki_variance() == 0.0
 
 
-def test_compute_iki_variance_aggregates_across_sessions() -> None:
+def test_iki_variance_aggregates_across_sessions() -> None:
     session_a = [event('a', i * 100_000_000) for i in range(5)]
     session_b = [event('b', i * 200_000_000) for i in range(5)]
-    variance = compute_iki_variance([session_a, session_b])
+    variance = reconstruct_sessions([session_a, session_b]).iki_variance()
     assert variance is not None
     assert variance > 0
 

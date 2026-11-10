@@ -10,6 +10,7 @@ from collections.abc import Iterator
 from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import field
+from itertools import chain
 from itertools import pairwise
 
 
@@ -237,6 +238,33 @@ class WindowReconstruction:
     def corrections(self) -> list[Correction]:
         return [c for s in self.sessions for c in s.corrections]
 
+    @property
+    def active_ns(self) -> int:
+        """Time spent inside typing bursts, with every pause over `BURST_THRESHOLD_NS` left out."""
+        return sum(sum(burst_ikis(s.typed_at_ns)) for s in self.sessions)
+
+    def wpm(self) -> float | None:
+        """Active-time WPM: chars/5 over burst minutes.
+
+        None when the sessions hold no active typing time, so an empty window reads apart from a
+        measured zero.
+        """
+        active_ns = self.active_ns
+        if active_ns == 0:
+            return None
+        minutes = active_ns / 1_000_000_000 / 60
+        return (self.chars / 5) / minutes
+
+    def iki_variance(self) -> float | None:
+        """Population variance of typing-burst IKIs (ns²), pooled across sessions.
+
+        None with fewer than two intervals, where no variance was measured.
+        """
+        ikis = array('q', chain.from_iterable(burst_ikis(s.typed_at_ns) for s in self.sessions))
+        if len(ikis) < 2:
+            return None
+        return statistics.pvariance(ikis)
+
     def bigram_stats(self) -> dict[str, BigramStats]:
         return bigram_stats(*self.sessions)
 
@@ -280,43 +308,6 @@ def burst_ikis(typed_at_ns: Iterable[int]) -> Iterator[int]:
         gap = t2 - t1
         if 0 < gap < BURST_THRESHOLD_NS:
             yield gap
-
-
-def session_wpm_components(events: Iterable[dict]) -> tuple[int, int]:
-    """Return (chars, active_ns) for events from a single boot session."""
-    rec = reconstruct(events)
-    return (len(rec.text), sum(burst_ikis(rec.typed_at_ns)))
-
-
-def compute_wpm(sessions: Iterable[Iterable[dict]]) -> float | None:
-    """Aggregate active-time WPM across sessions: chars/5 over burst minutes.
-
-    None when the sessions hold no active typing time, so an empty window reads apart from a
-    measured zero.
-    """
-    total_chars = 0
-    total_active_ns = 0
-    for events in sessions:
-        chars, active_ns = session_wpm_components(events)
-        total_chars += chars
-        total_active_ns += active_ns
-    if total_active_ns == 0:
-        return None
-    minutes = total_active_ns / 1_000_000_000 / 60
-    return (total_chars / 5) / minutes
-
-
-def compute_iki_variance(sessions: Iterable[Iterable[dict]]) -> float | None:
-    """Population variance of typing-burst IKIs (ns²) across sessions.
-
-    None with fewer than two intervals, where no variance was measured.
-    """
-    all_ikis = array('q')
-    for events in sessions:
-        all_ikis.extend(burst_ikis(reconstruct(events).typed_at_ns))
-    if len(all_ikis) < 2:
-        return None
-    return statistics.pvariance(all_ikis)
 
 
 def variance_ns_to_ms(variance_ns2: float) -> float:

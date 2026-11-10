@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import datetime as dt
 from collections import Counter
+from collections.abc import Iterable
 from collections.abc import Iterator
+from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -10,16 +12,18 @@ from rich.table import Table
 
 from typos import installed_commit
 from typos import tool_version
-from typos.analyzer import compute_iki_variance
-from typos.analyzer import compute_wpm
+from typos.analyzer import Reconstruction
+from typos.analyzer import WindowReconstruction
 from typos.analyzer import damage_deltas
 from typos.analyzer import damage_scores
 from typos.analyzer import display_bigram
+from typos.analyzer import reconstruct
 from typos.analyzer import reconstruct_sessions
 from typos.analyzer import variance_ns_to_ms
 from typos.analyzer import window_end
 from typos.config import data_dir
 from typos.storage import days_active
+from typos.storage import files_between
 from typos.storage import iter_events
 from typos.storage import list_session_files
 from typos.window import Since
@@ -34,16 +38,26 @@ def per_session_events(since: dt.date | None = None, until: dt.date | None = Non
         yield iter_events(path)
 
 
-def wpm_windows(until: dt.date | None) -> tuple[float | None, float | None]:
+def reconstruct_files(files: Iterable[Path]) -> dict[Path, Reconstruction]:
+    """Read and reconstruct each session file once, keyed by its path, in the order given."""
+    return {path: reconstruct(iter_events(path)) for path in files}
+
+
+def window_between(reconstructed: dict[Path, Reconstruction], since: dt.date | None, until: dt.date | None) -> WindowReconstruction:
+    """The sessions among `reconstructed` whose files are dated in `[since, until)`."""
+    return WindowReconstruction([reconstructed[path] for path in files_between(reconstructed, since, until)])
+
+
+def wpm_windows(reconstructed: dict[Path, Reconstruction], until: dt.date | None) -> tuple[float | None, float | None]:
     """Active-time WPM over the 7 and 30 days before `until`, or through today when it is None.
 
     `until` is the exclusive last day `resolved` returns, so both windows end where the read does.
-    A window with no active typing time is None.
+    `reconstructed` has to reach back the 30 days. A window with no active typing time is None.
     """
     anchor = until or window_end()
     return (
-        compute_wpm(per_session_events(since=anchor - dt.timedelta(days=7), until=until)),
-        compute_wpm(per_session_events(since=anchor - dt.timedelta(days=30), until=until)),
+        window_between(reconstructed, anchor - dt.timedelta(days=7), until).wpm(),
+        window_between(reconstructed, anchor - dt.timedelta(days=30), until).wpm(),
     )
 
 
@@ -147,7 +161,16 @@ def report_cmd(
       typos report --since 14d --until 7d   the week before last, to compare with this one
     """
     cutoff, until_cutoff = resolved(since, until, dt.datetime.now().astimezone())
-    sessions = list_session_files(since=cutoff, until=until_cutoff)
+    anchor = until_cutoff or window_end()
+    cutoff_7d = anchor - dt.timedelta(days=7)
+    cutoff_14d = anchor - dt.timedelta(days=14)
+    cutoff_30d = anchor - dt.timedelta(days=30)
+
+    # Every window below ends by until_cutoff and opens no earlier than the
+    # earlier of cutoff and cutoff_30d. So each file in that span is read and
+    # reconstructed once, and each window selects its sessions from that read.
+    files = list_session_files(since=None if cutoff is None else min(cutoff, cutoff_30d), until=until_cutoff)
+    sessions = files_between(files, cutoff, until_cutoff)
     if not sessions:
         stderr_console.print(
             f'[yellow]no sessions in window ({described(cutoff, until_cutoff)}); '
@@ -155,16 +178,16 @@ def report_cmd(
         )
         return
 
-    window = reconstruct_sessions(per_session_events(since=cutoff, until=until_cutoff))
+    reconstructed = reconstruct_files(files)
+    window = window_between(reconstructed, cutoff, until_cutoff)
     stats = window.bigram_stats()
     scores = damage_scores(stats)
 
-    anchor = until_cutoff or window_end()
-    cutoff_7d = anchor - dt.timedelta(days=7)
-    cutoff_14d = anchor - dt.timedelta(days=14)
-    wpm_7d, wpm_30d = wpm_windows(until_cutoff)
-    var_current = compute_iki_variance(per_session_events(since=cutoff_7d, until=until_cutoff))
-    var_prior = compute_iki_variance(per_session_events(since=cutoff_14d, until=cutoff_7d))
+    current_week = window_between(reconstructed, cutoff_7d, until_cutoff)
+    prior_week = window_between(reconstructed, cutoff_14d, cutoff_7d)
+    wpm_7d, wpm_30d = wpm_windows(reconstructed, until_cutoff)
+    var_current = current_week.iki_variance()
+    var_prior = prior_week.iki_variance()
 
     console.print(f'[bold]typos report — {described(cutoff, until_cutoff)}[/bold]')
     console.print(f'  sessions:     {len(sessions)}')
@@ -212,9 +235,7 @@ def report_cmd(
     # Damage grows with how often a bigram is typed, so the deltas compare two
     # weeks of equal length whatever --since says. Scoring the whole window
     # against one week would report every bigram as worse on a 30-day report.
-    prior_week = reconstruct_sessions(per_session_events(since=cutoff_14d, until=cutoff_7d))
     if prior_week.sessions:
-        current_week = reconstruct_sessions(per_session_events(since=cutoff_7d, until=until_cutoff))
         prior_scores = damage_scores(prior_week.bigram_stats())
         current_scores = damage_scores(current_week.bigram_stats())
         improved, worsened = damage_deltas(prior_scores, current_scores)

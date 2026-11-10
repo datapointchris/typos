@@ -6,7 +6,9 @@ from pathlib import Path
 
 import pytest
 
+from typos.main import reconstruct_files
 from typos.main import wpm_windows
+from typos.storage import list_session_files
 
 
 @pytest.fixture
@@ -31,10 +33,12 @@ def test_wpm_windows_end_at_until_and_otherwise_at_today(sessions_dir: Path) -> 
     typed_on = dt.date.today() - dt.timedelta(days=91)
     write_session(sessions_dir, typed_on, list('abcdefghij'))
 
-    wpm_7d, wpm_30d = wpm_windows(until=typed_on + dt.timedelta(days=1))
+    reconstructed = reconstruct_files(list_session_files())
+
+    wpm_7d, wpm_30d = wpm_windows(reconstructed, until=typed_on + dt.timedelta(days=1))
     assert wpm_7d is not None
     assert wpm_7d > 0
     assert wpm_30d is not None
     assert wpm_30d > 0
 
-    assert wpm_windows(until=None) == (None, None)
+    assert wpm_windows(reconstructed, until=None) == (None, None)

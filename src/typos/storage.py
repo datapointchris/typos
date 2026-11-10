@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import re
+from collections.abc import Iterable
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -23,9 +24,16 @@ def list_session_files(since: dt.date | None = None, until: dt.date | None = Non
     sd = sessions_dir()
     if not sd.exists():
         return []
-    files = sorted(sd.glob('*.jsonl'))
+    return files_between(sorted(sd.glob('*.jsonl')), since, until)
+
+
+def files_between(files: Iterable[Path], since: dt.date | None, until: dt.date | None) -> list[Path]:
+    """The session files dated in `[since, until)`, in the order given.
+
+    With neither bound every file is in, one whose name carries no date included.
+    """
     if since is None and until is None:
-        return files
+        return list(files)
     out: list[Path] = []
     for f in files:
         d = parse_session_date(f)
