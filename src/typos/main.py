@@ -28,10 +28,10 @@ from typos.window import described
 from typos.window import resolved
 
 
-def per_session_events(since: dt.date | None = None, until: dt.date | None = None) -> Iterator[list[dict]]:
-    """Yield event-lists, one per session file, within the given window."""
+def per_session_events(since: dt.date | None = None, until: dt.date | None = None) -> Iterator[Iterator[dict]]:
+    """Yield one stream of events per session file within the given window."""
     for path in list_session_files(since=since, until=until):
-        yield list(iter_events(path))
+        yield iter_events(path)
 
 
 def wpm_windows(until: dt.date | None) -> tuple[float | None, float | None]:

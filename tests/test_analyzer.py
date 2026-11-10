@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import random
+import statistics
+from array import array
 from pathlib import Path
 
 from typos.analyzer import DamageScore
@@ -8,6 +11,7 @@ from typos.analyzer import compute_iki_variance
 from typos.analyzer import compute_wpm
 from typos.analyzer import damage_deltas
 from typos.analyzer import damage_scores
+from typos.analyzer import median_of_sorted
 from typos.analyzer import mistyped_words
 from typos.analyzer import reconstruct
 from typos.analyzer import reconstruct_sessions
@@ -94,13 +98,23 @@ def test_bigram_stats_counts_ikis() -> None:
             event('l', 4_000_000),
             event('l', 5_000_000),
             event('o', 9_000_000),
+            event('h', 10_000_000),
+            event('e', 10_500_000),
         ]
     )
-    stats = bigram_stats(rec.char_timings)
-    assert stats['he'].count == 1
-    assert stats['he'].ikis_ns == [1_000_000]
-    assert stats['lo'].ikis_ns == [4_000_000]
+    stats = bigram_stats(rec)
+    assert stats['he'].count == 2
+    assert list(stats['he'].ikis_ns) == [500_000, 1_000_000]
+    assert list(stats['lo'].ikis_ns) == [4_000_000]
     assert stats['ll'].count == 1
+
+
+def test_median_of_sorted_runs_matches_statistics_median() -> None:
+    rng = random.Random(0)
+    for size, top in ((1, 10**9), (2, 10**9), (7, 20), (10, 20), (1001, 10**9)):
+        values = [rng.randint(0, top) for _ in range(size)]
+        runs = [array('q', sorted(values[i::3])) for i in range(3)]
+        assert median_of_sorted(runs) == statistics.median(values)
 
 
 def test_a_window_never_pairs_or_corrects_across_session_files() -> None:
@@ -126,7 +140,7 @@ def test_damage_score_is_zero_when_uniform_speed() -> None:
             event('b', 3_000_000),
         ]
     )
-    stats = bigram_stats(rec.char_timings)
+    stats = bigram_stats(rec)
     scores = damage_scores(stats)
     for s in scores:
         assert s.score == 0
@@ -143,7 +157,7 @@ def test_damage_score_ranks_slow_bigrams_higher() -> None:
             event('b', 320_000_000),
         ]
     )
-    stats = bigram_stats(rec.char_timings)
+    stats = bigram_stats(rec)
     scores = damage_scores(stats)
     assert scores[0].bigram == 'ab'
 
@@ -151,7 +165,7 @@ def test_damage_score_ranks_slow_bigrams_higher() -> None:
 def test_fixture_smoke() -> None:
     events = list(iter_events(FIXTURE))
     rec = reconstruct(events)
-    stats = bigram_stats(rec.char_timings)
+    stats = bigram_stats(rec)
     scores = damage_scores(stats)
     assert len(rec.text) > 0
     assert len(stats) > 0
@@ -228,12 +242,11 @@ def test_variance_ns_to_ms_conversion() -> None:
 
 
 def test_trailing_word_extracts_to_whitespace() -> None:
-    buf = [(c, i) for i, c in enumerate('the cat sat')]
-    assert trailing_word(buf) == 'sat'
-    assert trailing_word([(c, i) for i, c in enumerate('hello\nworld')]) == 'world'
-    assert trailing_word([(c, i) for i, c in enumerate('foo\tbar')]) == 'bar'
-    assert trailing_word([]) == ''
-    assert trailing_word([(c, i) for i, c in enumerate('one ')]) == ''
+    assert trailing_word('the cat sat') == 'sat'
+    assert trailing_word('hello\nworld') == 'world'
+    assert trailing_word('foo\tbar') == 'bar'
+    assert trailing_word('') == ''
+    assert trailing_word('one ') == ''
 
 
 def test_correction_records_word_context() -> None:

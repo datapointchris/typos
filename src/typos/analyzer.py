@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import datetime as dt
 import statistics
+from array import array
+from bisect import bisect_right
 from collections import Counter
 from collections.abc import Iterable
+from collections.abc import Iterator
+from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import field
 from itertools import pairwise
@@ -49,19 +53,27 @@ class WordMisstats:
 
 @dataclass
 class BigramStats:
+    """One bigram's count and every interval it was typed in, ascending."""
+
     bigram: str
     count: int = 0
-    ikis_ns: list[int] = field(default_factory=list)
+    ikis_ns: array[int] = field(default_factory=lambda: array('q'))
 
     @property
     def median_iki_ns(self) -> int:
-        return int(statistics.median(self.ikis_ns)) if self.ikis_ns else 0
+        return int(median_of_sorted([self.ikis_ns])) if self.ikis_ns else 0
 
 
 @dataclass
 class Reconstruction:
+    """One session's final text, when each character of it was typed, and its corrections.
+
+    `typed_at_ns[i]` is the `ts_ns` of `text[i]`. A report holds every session of its
+    window at once, so the timings are one machine integer each rather than a tuple per character.
+    """
+
     text: str
-    char_timings: list[tuple[str, int]]
+    typed_at_ns: array[int]
     corrections: list[Correction]
 
 
@@ -89,18 +101,19 @@ def normalize_key(key: str) -> str | None:
     return None
 
 
-def trailing_word(buffer: list[tuple[str, int]]) -> str:
-    """Return the contiguous run of non-whitespace chars at the end of the buffer."""
-    chars: list[str] = []
-    for c, _ in reversed(buffer):
+def trailing_word(chars: Sequence[str]) -> str:
+    """Return the contiguous run of non-whitespace chars at the end of `chars`."""
+    word: list[str] = []
+    for c in reversed(chars):
         if c in ' \n\t':
             break
-        chars.append(c)
-    return ''.join(reversed(chars))
+        word.append(c)
+    return ''.join(reversed(word))
 
 
 def reconstruct(events: Iterable[dict]) -> Reconstruction:
-    buffer: list[tuple[str, int]] = []
+    chars: list[str] = []
+    typed_at_ns = array('q')
     corrections: list[Correction] = []
     pending_deletions: list[str] = []
     pending_insertions: list[str] = []
@@ -114,7 +127,7 @@ def reconstruct(events: Iterable[dict]) -> Reconstruction:
                     wrong=''.join(reversed(pending_deletions)),
                     right=''.join(pending_insertions),
                     start_ts_ns=pending_start_ts or 0,
-                    word_context=trailing_word(buffer),
+                    word_context=trailing_word(chars),
                 )
             )
         pending_deletions.clear()
@@ -129,7 +142,7 @@ def reconstruct(events: Iterable[dict]) -> Reconstruction:
         ts = event['ts_ns']
 
         if key == BACKSPACE:
-            if not buffer:
+            if not chars:
                 continue
             if pending_insertions:
                 # Already retyping after a delete; finalize that correction first
@@ -137,8 +150,8 @@ def reconstruct(events: Iterable[dict]) -> Reconstruction:
                 flush()
             if pending_start_ts is None:
                 pending_start_ts = ts
-            deleted_char, _ = buffer.pop()
-            pending_deletions.append(deleted_char)
+            typed_at_ns.pop()
+            pending_deletions.append(chars.pop())
             continue
 
         char = normalize_key(key)
@@ -151,26 +164,57 @@ def reconstruct(events: Iterable[dict]) -> Reconstruction:
             # char joins the buffer. Otherwise trailing_word reads the empty
             # space and word_context comes back blank.
             flush()
-        buffer.append((char, ts))
+        chars.append(char)
+        typed_at_ns.append(ts)
         if pending_deletions:
             pending_insertions.append(char)
 
     flush()
 
-    text = ''.join(c for c, _ in buffer)
-    return Reconstruction(text=text, char_timings=buffer, corrections=corrections)
+    return Reconstruction(text=''.join(chars), typed_at_ns=typed_at_ns, corrections=corrections)
 
 
-def bigram_stats(*runs: list[tuple[str, int]]) -> dict[str, BigramStats]:
-    """Count and time each adjacent pair of characters within a run, never across two."""
+def bigram_stats(*sessions: Reconstruction) -> dict[str, BigramStats]:
+    """Count and time each adjacent pair of characters within a session, never across two."""
     stats: dict[str, BigramStats] = {}
-    for char_timings in runs:
-        for (c1, t1), (c2, t2) in pairwise(char_timings):
+    for session in sessions:
+        for (c1, t1), (c2, t2) in pairwise(zip(session.text, session.typed_at_ns, strict=True)):
             bg = c1 + c2
-            entry = stats.setdefault(bg, BigramStats(bigram=bg))
+            entry = stats.get(bg)
+            if entry is None:
+                entry = stats[bg] = BigramStats(bigram=bg)
             entry.count += 1
             entry.ikis_ns.append(t2 - t1)
+    for entry in stats.values():
+        entry.ikis_ns = array('q', sorted(entry.ikis_ns))
     return stats
+
+
+def kth_smallest(sorted_runs: Sequence[array[int]], k: int) -> int:
+    """The k-th smallest value, counting from 0, across runs that are each ascending.
+
+    It bisects the range of values, counting how many in each run fall at or below the
+    midpoint, so it holds nothing beyond the runs. Sorting them together, as
+    `statistics.median` would, copies every interval of the window into a Python int.
+    """
+    lo = min(run[0] for run in sorted_runs if run)
+    hi = max(run[-1] for run in sorted_runs if run)
+    while lo < hi:
+        mid = (lo + hi) // 2
+        if sum(bisect_right(run, mid) for run in sorted_runs) > k:
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
+
+
+def median_of_sorted(sorted_runs: Sequence[array[int]]) -> float:
+    """`statistics.median` of every value across runs that are each ascending."""
+    n = sum(map(len, sorted_runs))
+    middle = n // 2
+    if n % 2:
+        return kth_smallest(sorted_runs, middle)
+    return (kth_smallest(sorted_runs, middle - 1) + kth_smallest(sorted_runs, middle)) / 2
 
 
 @dataclass
@@ -194,7 +238,7 @@ class WindowReconstruction:
         return [c for s in self.sessions for c in s.corrections]
 
     def bigram_stats(self) -> dict[str, BigramStats]:
-        return bigram_stats(*(s.char_timings for s in self.sessions))
+        return bigram_stats(*self.sessions)
 
     def mistyped_words(self) -> list[WordMisstats]:
         return mistyped_words('\n'.join(s.text for s in self.sessions), self.corrections)
@@ -205,12 +249,10 @@ def reconstruct_sessions(sessions: Iterable[Iterable[dict]]) -> WindowReconstruc
 
 
 def damage_scores(stats: dict[str, BigramStats]) -> list[DamageScore]:
-    all_ikis = []
-    for bg in stats.values():
-        all_ikis.extend(bg.ikis_ns)
-    if not all_ikis:
+    runs = [bg.ikis_ns for bg in stats.values()]
+    if not any(runs):
         return []
-    baseline = statistics.median(all_ikis)
+    baseline = median_of_sorted(runs)
 
     scores: list[DamageScore] = []
     for bg in stats.values():
@@ -228,26 +270,22 @@ def display_bigram(bg: str) -> str:
     return bg.replace(' ', '␣').replace('\n', '↵').replace('\t', '⇥')
 
 
-def char_timing_burst_ikis(char_timings: list[tuple[str, int]]) -> list[int]:
-    """Extract typing-burst IKIs (in ns) from a char_timings list.
+def burst_ikis(typed_at_ns: Iterable[int]) -> Iterator[int]:
+    """The typing-burst IKIs (in ns) between consecutive typed characters.
 
     ts_ns from vim.uv.hrtime() is monotonic-since-boot, so IKIs are only
-    meaningful within one session — callers must group char_timings per session.
+    meaningful within one session — callers pass one session's timings at a time.
     """
-    ikis: list[int] = []
-    for i in range(len(char_timings) - 1):
-        _, t1 = char_timings[i]
-        _, t2 = char_timings[i + 1]
+    for t1, t2 in pairwise(typed_at_ns):
         gap = t2 - t1
         if 0 < gap < BURST_THRESHOLD_NS:
-            ikis.append(gap)
-    return ikis
+            yield gap
 
 
 def session_wpm_components(events: Iterable[dict]) -> tuple[int, int]:
     """Return (chars, active_ns) for events from a single boot session."""
     rec = reconstruct(events)
-    return (len(rec.text), sum(char_timing_burst_ikis(rec.char_timings)))
+    return (len(rec.text), sum(burst_ikis(rec.typed_at_ns)))
 
 
 def compute_wpm(sessions: Iterable[Iterable[dict]]) -> float | None:
@@ -273,10 +311,9 @@ def compute_iki_variance(sessions: Iterable[Iterable[dict]]) -> float | None:
 
     None with fewer than two intervals, where no variance was measured.
     """
-    all_ikis: list[int] = []
+    all_ikis = array('q')
     for events in sessions:
-        rec = reconstruct(events)
-        all_ikis.extend(char_timing_burst_ikis(rec.char_timings))
+        all_ikis.extend(burst_ikis(reconstruct(events).typed_at_ns))
     if len(all_ikis) < 2:
         return None
     return statistics.pvariance(all_ikis)
