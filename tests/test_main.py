@@ -4,9 +4,12 @@ import datetime as dt
 import json
 from pathlib import Path
 
+import click
 import pytest
+import typer
 
 from typos.main import reconstruct_files
+from typos.main import typos_app
 from typos.main import wpm_windows
 from typos.storage import list_session_files
 
@@ -42,3 +45,14 @@ def test_wpm_windows_end_at_until_and_otherwise_at_today(sessions_dir: Path) -> 
     assert wpm_30d > 0
 
     assert wpm_windows(reconstructed, until=None) == (None, None)
+
+
+def test_every_listed_command_carries_examples() -> None:
+    """Walk the command tree, so a new subcommand cannot ship without a command to copy."""
+    root = typer.main.get_command(typos_app)
+    assert isinstance(root, click.Group)
+    commands: dict[str, click.Command] = {'typos': root}
+    commands.update({f'typos {name}': cmd for name, cmd in root.commands.items() if not cmd.hidden})
+
+    missing = [name for name, cmd in commands.items() if 'Examples:' not in (cmd.help or '')]
+    assert missing == []
