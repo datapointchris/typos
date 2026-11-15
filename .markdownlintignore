@@ -1,3 +1,4 @@
-# No release here writes a changelog. If a generated one arrives, markdownlint
-# leaves it alone, so its --fix cannot conflict with the next release's rewrite.
+# No release here writes a changelog: the GitHub release body is built from the
+# commits instead. A CHANGELOG.md a tool generates is left to that tool, so
+# markdownlint's --fix never edits a file whose next generation would undo it.
 CHANGELOG.md
