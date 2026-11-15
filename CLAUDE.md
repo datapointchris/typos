@@ -56,13 +56,9 @@ analyzer for no real gain at this scale.
 
 ## Why a session override, not a persisted switch
 
-A persisted "disabled" flag means you can forget you turned capture off and silently lose
-weeks of data. A session override means worst case you lose one session, and the next nvim
-start goes back to following `watch_dirs`. The asymmetry favors recoverability.
-
-The override is three-state — forced on, forced off, or following `watch_dirs` — which is why
-there is no toggle command: over three states a flip has no single obvious meaning.
-`:TyposOn` and `:TyposOff` each assert one state, so they are idempotent and safe to bind.
+The override is never persisted and has no toggle. README § "The `:Typos` commands" gives the
+reasons. The comment below `local state` in `lua/typos/init.lua` states them where the override
+lives.
 
 ## Why the directory list rather than a mode
 
