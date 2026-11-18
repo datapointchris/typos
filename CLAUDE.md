@@ -14,9 +14,11 @@ prose corpus — never canned word lists.
 
 The capture layer is `lua/typos/init.lua`: a `vim.on_key()` hook that writes append-only JSONL
 while the buffer is under a configured `watch_dirs` entry, overridden per session by `:TyposOn`,
-`:TyposOff` and `:TyposAuto`. There is no daemon. The analysis layer is `src/typos/`, where the
-CLI consumes the analyzer, the analyzer consumes storage events, and `storage.py` holds no
-analysis logic. Storage is the boundary — anything that needs raw events goes through it.
+`:TyposOff` and `:TyposAuto`. There is no daemon. The analysis layer is `src/typos/`. The CLI
+in `main.py` lists and reads session files through `storage.py`, then passes their events to
+`analyzer.py`. The analyzer imports neither `storage` nor `config` and reads no file, and
+`storage.py` holds no analysis logic. Storage is the boundary: it is the only module in
+`src/typos/` that opens a session file, so anything there that needs raw events goes through it.
 
 ## Storage
 
